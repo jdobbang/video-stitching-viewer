@@ -2,6 +2,8 @@
 
 축구장 좌/우 카메라 영상을 파노라마 영상으로 스티칭하는 파이프라인입니다.
 
+![Panorama Video Viewer](asset/image.png)
+
 ## 📦 설치
 
 ```bash
