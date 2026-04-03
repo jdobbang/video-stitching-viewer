@@ -1,0 +1,6 @@
+*.MOV
+*.mov
+__pycache__/
+output/
+frames_sync_auto/
+sync_verify/
