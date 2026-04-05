@@ -1,6 +1,16 @@
+# 영상 파일
 *.MOV
 *.mov
+
+# Python
 __pycache__/
+
+# 생성된 프레임
+frames_sync/
+
+# 파이프라인 출력
 output/
-frames_sync_auto/
-sync_verify/
+
+# 생성된 시각화 이미지
+*.jpg
+!asset/*.jpg

@@ -9,6 +9,7 @@ import sys
 import subprocess
 import argparse
 import time
+import json
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -41,7 +42,8 @@ def step_sync(args):
 
     from audio_sync import compute_sync_offset, export_synced_frames, save_sync_result
 
-    sync_dir = os.path.join(args.frames_dir, "sync_verify")
+    # sync_verify를 output/{name}/sync_verify 에 저장
+    sync_dir = os.path.join(args.output, "sync_verify")
     result = compute_sync_offset(
         args.left, args.right,
         fps=args.fps,
@@ -76,6 +78,7 @@ def step_calibrate(args):
         print(f"  ERROR: Synced frames not found at {args.frames_dir}")
         sys.exit(1)
 
+    os.makedirs(os.path.dirname(args.calib), exist_ok=True)
     cmd = [
         sys.executable, os.path.join(BASE_DIR, "auto_calibrate.py"),
         "--left", left_frame,
@@ -119,27 +122,24 @@ def main():
     parser = argparse.ArgumentParser(
         description="E2E Stitching Pipeline: MOV → Sync → Calibrate → Stitch"
     )
-    parser.add_argument("--left", default=os.path.join(BASE_DIR, "좌측캠.MOV"),
-                        help="Left camera MOV file")
-    parser.add_argument("--right", default=os.path.join(BASE_DIR, "우측캠.MOV"),
-                        help="Right camera MOV file")
-    parser.add_argument("--output", default=os.path.join(BASE_DIR, "output"),
-                        help="Output directory (default: output/)")
+    parser.add_argument("pair", nargs="?", default=None,
+                        help="Pair folder under asset/ (e.g. 0, 1, 2)")
+    parser.add_argument("--left", default=None, help="Left camera MOV file")
+    parser.add_argument("--right", default=None, help="Right camera MOV file")
+    parser.add_argument("--output", default=None, help="Output directory")
     parser.add_argument("--method", default="cylindrical", choices=["cylindrical", "planar"],
                         help="Stitching method (default: cylindrical)")
     parser.add_argument("--fps", type=float, default=None,
                         help="FPS override (auto-detect if omitted)")
     parser.add_argument("--workers", type=int, default=None,
                         help="Stitching parallel workers")
-    parser.add_argument("--frames-dir", default=os.path.join(BASE_DIR, "frames_sync_auto"),
-                        help="Synced frames directory (default: frames_sync_auto/)")
-    parser.add_argument("--calib", default=os.path.join(BASE_DIR, "calibration_auto.json"),
-                        help="Calibration JSON path")
+    parser.add_argument("--frames-dir", default=None, help="Synced frames directory")
+    parser.add_argument("--calib", default=None, help="Calibration JSON path")
 
     parser.add_argument("--left-focal", type=float, default=None,
-                        help="좌측 카메라 35mm 환산 focal length (mm)")
+                        help="좌측 카메라 35mm 환산 focal length (mm, overrides focal.json)")
     parser.add_argument("--right-focal", type=float, default=None,
-                        help="우측 카메라 35mm 환산 focal length (mm)")
+                        help="우측 카메라 35mm 환산 focal length (mm, overrides focal.json)")
     parser.add_argument("--max-frames", type=int, default=None,
                         help="Max frames to extract (default: all)")
 
@@ -152,12 +152,43 @@ def main():
 
     args = parser.parse_args()
 
-    # focal 스펙이 주어지면 경로에 _spec 접미사 자동 추가
-    if args.left_focal is not None:
-        if not args.output.endswith("_spec"):
-            args.output = args.output + "_spec"
-        if not args.calib.endswith("_spec.json"):
-            args.calib = args.calib.replace(".json", "_spec.json")
+    # pair 이름 결정: positional arg 또는 --left 파일명에서 추출
+    if args.pair is not None:
+        video_name = args.pair
+    elif args.left is not None:
+        video_name = os.path.splitext(os.path.basename(args.left))[0]
+        video_name = video_name.replace("_left", "").replace("_right", "")
+    else:
+        parser.error("pair 번호 또는 --left 경로를 지정하세요. 예: python pipeline.py 1")
+
+    # asset/{name}/ 폴더에서 영상 + focal.json 자동 로드
+    pair_dir = os.path.join(BASE_DIR, "asset", video_name)
+    if args.left is None:
+        args.left = os.path.join(pair_dir, "left.MOV")
+    if args.right is None:
+        args.right = os.path.join(pair_dir, "right.MOV")
+
+    # focal.json 자동 로드 (CLI 인자가 없을 때)
+    focal_path = os.path.join(pair_dir, "focal.json")
+    if os.path.exists(focal_path):
+        with open(focal_path, "r") as f:
+            focal_cfg = json.load(f)
+        if args.left_focal is None and focal_cfg.get("left_focal_mm") is not None:
+            args.left_focal = focal_cfg["left_focal_mm"]
+        if args.right_focal is None and focal_cfg.get("right_focal_mm") is not None:
+            args.right_focal = focal_cfg["right_focal_mm"]
+
+    has_focal = args.left_focal is not None
+
+    # 미지정 경로를 비디오 이름 기반으로 자동 생성
+    if args.frames_dir is None:
+        args.frames_dir = os.path.join(BASE_DIR, "frames_sync", video_name)
+    if args.calib is None:
+        calib_name = "calib_spec.json" if has_focal else "calib.json"
+        args.calib = os.path.join(BASE_DIR, "calibrations", video_name, calib_name)
+    if args.output is None:
+        out_name = f"{video_name}_spec" if has_focal else video_name
+        args.output = os.path.join(BASE_DIR, "output", out_name)
 
     print("=" * 60)
     print("  E2E Stitching Pipeline")

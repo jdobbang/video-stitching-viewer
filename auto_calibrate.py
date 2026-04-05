@@ -221,7 +221,7 @@ def main():
     parser = argparse.ArgumentParser(description="자동 캘리브레이션 (DISK + LightGlue)")
     parser.add_argument("--left", default=os.path.join(BASE_DIR, "left_sync/frame_00001.jpg"))
     parser.add_argument("--right", default=os.path.join(BASE_DIR, "right_sync/frame_00001.jpg"))
-    parser.add_argument("--output", default=os.path.join(BASE_DIR, "calibration_auto.json"))
+    parser.add_argument("--output", default=os.path.join(BASE_DIR, "calibrations", "auto", "calib.json"))
     parser.add_argument("--left-focal", type=float, default=None,
                         help="좌측 카메라 35mm 환산 focal length (mm)")
     parser.add_argument("--right-focal", type=float, default=None,
@@ -266,13 +266,14 @@ def main():
     if H is not None:
         calib["homography"] = H.tolist()
 
+    os.makedirs(os.path.dirname(args.output), exist_ok=True)
     with open(args.output, "w", encoding="utf-8") as f:
         json.dump(calib, f, indent=2, ensure_ascii=False)
 
     print(f"\n저장: {args.output} ({len(point_pairs)}쌍)")
 
-    # 매칭된 특징점 시각화 저장
-    vis_path = args.output.replace(".json", "_matches_vis.jpg")
+    # 매칭된 특징점 시각화 저장 (같은 폴더에 matches_vis.jpg)
+    vis_path = os.path.join(os.path.dirname(args.output), "matches_vis.jpg")
     visualize(left, right, point_pairs, vis_path)
 
     print("\n" + "=" * 60)
