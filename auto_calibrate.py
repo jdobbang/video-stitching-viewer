@@ -13,6 +13,12 @@ import argparse
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
+def _adaptive_ransac_thresh(h, w):
+    """이미지 해상도에 비례하는 RANSAC 임계값 (대각선의 0.3%)"""
+    diag = (h ** 2 + w ** 2) ** 0.5
+    return max(3.0, diag * 0.003)
+
+
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # SuperPoint + LightGlue 매칭
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -120,8 +126,9 @@ def detect_and_match_lightglue(left, right):
     kp1 = kp1[sorted_idx]
     conf = conf[sorted_idx]
 
-    # RANSAC
-    H, mask = cv2.findHomography(kp1, kp0, cv2.RANSAC, 5.0)
+    # RANSAC (해상도 적응형 임계값)
+    thresh = _adaptive_ransac_thresh(h, w)
+    H, mask = cv2.findHomography(kp1, kp0, cv2.RANSAC, thresh)
     if H is None:
         print("ERROR: 호모그래피 계산 실패")
         return [], None
@@ -131,7 +138,7 @@ def detect_and_match_lightglue(left, right):
     kp1 = kp1[inliers]
     conf = conf[inliers]
 
-    print(f"  RANSAC 인라이어: {inliers.sum()}/{len(inliers)}")
+    print(f"  RANSAC 인라이어: {inliers.sum()}/{len(inliers)} (임계값: {thresh:.1f}px)")
 
     # 재투영 오차
     kp1_h = np.hstack([kp1, np.ones((len(kp1), 1))])
@@ -141,7 +148,7 @@ def detect_and_match_lightglue(left, right):
 
     # 오차 작은 순 정렬, 상위 유지
     sorted_idx = np.argsort(errors)
-    max_keep = min(80, len(sorted_idx))
+    max_keep = min(150, len(sorted_idx))
     kp0 = kp0[sorted_idx[:max_keep]]
     kp1 = kp1[sorted_idx[:max_keep]]
     errors = errors[sorted_idx[:max_keep]]
@@ -149,12 +156,12 @@ def detect_and_match_lightglue(left, right):
     print(f"  재투영 오차 -평균: {errors.mean():.2f}px, 최대: {errors.max():.2f}px")
 
     # 공간 분포 최적화 (16x16 그리드 → 더 많은 셀에서 포인트 유지)
-    kp0, kp1 = spatial_subsample(kp0, kp1, left.shape, grid_size=16)
+    kp0, kp1 = spatial_subsample(kp0, kp1, left.shape, grid_size=24)
     print(f"  공간 분포 최적화 후: {len(kp0)}쌍")
 
     # 최종 호모그래피 재계산
     if len(kp0) >= 4:
-        H, _ = cv2.findHomography(kp1, kp0, cv2.RANSAC, 5.0)
+        H, _ = cv2.findHomography(kp1, kp0, cv2.RANSAC, thresh)
 
     point_pairs = []
     for i in range(len(kp0)):

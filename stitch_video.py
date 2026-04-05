@@ -29,6 +29,18 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 import multiprocessing
 
 
+def _check_cuda():
+    try:
+        if cv2.cuda.getCudaEnabledDeviceCount() > 0:
+            return True
+    except (AttributeError, cv2.error):
+        pass
+    return False
+
+
+HAS_CUDA = _check_cuda()
+
+
 # ============================================================================
 # CYLINDRICAL PROJECTION
 # ============================================================================
@@ -184,6 +196,20 @@ class PanoramaStitcher:
         self._compute_canvas_params()
         self._build_combined_maps()
         self._precompute_blend_weight()
+
+        # ── GPU remap 맵 업로드 ──
+        self._gpu_maps = None
+        if HAS_CUDA and self._left_combined_maps is not None:
+            try:
+                self._gpu_left_map_x = cv2.cuda_GpuMat(self._left_combined_maps[0])
+                self._gpu_left_map_y = cv2.cuda_GpuMat(self._left_combined_maps[1])
+                self._gpu_right_map_x = cv2.cuda_GpuMat(self._right_combined_maps[0])
+                self._gpu_right_map_y = cv2.cuda_GpuMat(self._right_combined_maps[1])
+                self._gpu_maps = True
+                print(f"  GPU remap maps uploaded")
+            except Exception as e:
+                print(f"  GPU map upload failed, CPU fallback: {e}")
+                self._gpu_maps = None
 
         print(f"Stitcher initialized: {method} method")
         print(f"  Image size: {self.w}x{self.h}")
@@ -425,7 +451,19 @@ class PanoramaStitcher:
         canvas_size = (self.canvas_w, self.canvas_h)
 
         # 1+2) 합성 remap 맵으로 cylindrical warp + 캔버스 배치를 1회로 처리
-        if self._left_combined_maps is not None:
+        if self._gpu_maps:
+            # GPU 경로: 프레임 업로드 → GPU remap → 다운로드
+            gpu_left = cv2.cuda_GpuMat(left_img)
+            gpu_right = cv2.cuda_GpuMat(right_img)
+            gpu_canvas_left = cv2.cuda.remap(
+                gpu_left, self._gpu_left_map_x, self._gpu_left_map_y,
+                cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
+            gpu_warped_right = cv2.cuda.remap(
+                gpu_right, self._gpu_right_map_x, self._gpu_right_map_y,
+                cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
+            canvas_left = gpu_canvas_left.download()
+            warped_right = gpu_warped_right.download()
+        elif self._left_combined_maps is not None:
             canvas_left = cv2.remap(
                 left_img, self._left_combined_maps[0], self._left_combined_maps[1],
                 cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
@@ -536,7 +574,7 @@ def batch_stitch(left_dir, right_dir, calibration_path, output_dir,
     stitcher = PanoramaStitcher(calibration_path, method=method,
                                 focal_weight=focal_weight)
 
-    # 멀티프로세싱용 파라미터 직렬화
+    # 멀티프로세싱용 파라미터 직렬화 (GPU 관련 필드 제외)
     stitcher_params = {
         'method': stitcher.method,
         'image_size': stitcher.image_size,
@@ -555,6 +593,7 @@ def batch_stitch(left_dir, right_dir, calibration_path, output_dir,
         '_blend_alpha_3c': stitcher._blend_alpha_3c,
         '_has_overlap': stitcher._has_overlap,
         '_crop_rect': stitcher._crop_rect,
+        '_gpu_maps': None,  # GPU는 프로세스 간 공유 불가
     }
 
     process_args = [
@@ -607,6 +646,59 @@ def batch_stitch(left_dir, right_dir, calibration_path, output_dir,
 
     print(f"\n\nCompleted: {success_count} success, {error_count} errors")
     print(f"Output directory: {output_dir}")
+    return output_dir
+
+
+# ============================================================================
+# STREAMING STITCH (IN-MEMORY PIPELINE)
+# ============================================================================
+
+def stitch_from_iterator(frame_iterator, calibration_path, output_dir,
+                         method='cylindrical', focal_weight='auto', fps=30,
+                         no_video=False, total_frames=None):
+    """메모리 이터레이터에서 프레임을 받아 스티칭한다 (디스크 I/O 최소화).
+
+    Args:
+        frame_iterator: (left_frame, right_frame) BGR numpy 쌍을 yield
+        calibration_path: calibration JSON 경로
+        output_dir: 출력 디렉토리
+        method: 'cylindrical' 또는 'planar'
+        focal_weight: focal_length 가중치
+        fps: 출력 비디오 FPS
+        no_video: True면 비디오 생성 스킵
+        total_frames: 총 프레임 수 (tqdm 진행률 표시용, None이면 미표시)
+    """
+    output_dir = Path(output_dir)
+    frames_dir = output_dir / 'frames'
+    frames_dir.mkdir(parents=True, exist_ok=True)
+
+    stitcher = PanoramaStitcher(calibration_path, method=method,
+                                focal_weight=focal_weight)
+
+    try:
+        from tqdm import tqdm
+        progress = tqdm(total=total_frames, desc="Stitching")
+    except ImportError:
+        progress = None
+
+    count = 0
+    for left_img, right_img in frame_iterator:
+        result = stitcher.stitch(left_img, right_img, crop=True)
+        out_path = frames_dir / f"stitched_frame_{count + 1:06d}.jpg"
+        cv2.imwrite(str(out_path), result, [cv2.IMWRITE_JPEG_QUALITY, 95])
+        count += 1
+        if progress:
+            progress.update(1)
+        elif count % 100 == 0:
+            print(f"\r  Stitched {count} frames...", end='')
+
+    if progress:
+        progress.close()
+    print(f"\n  Stitched {count} frames total")
+
+    if not no_video and count > 0:
+        create_video(frames_dir, output_dir / 'panorama.mp4', fps=fps)
+
     return output_dir
 
 

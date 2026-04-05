@@ -57,15 +57,16 @@ def get_fps(mov_path):
     return None
 
 
-def extract_audio(mov_path, wav_path, sample_rate=48000):
+def extract_audio(mov_path, wav_path, sample_rate=48000, max_duration=300):
     ffmpeg = get_ffmpeg()
     if os.path.exists(wav_path):
         os.remove(wav_path)
-    result = subprocess.run(
-        [ffmpeg, "-i", mov_path, "-vn", "-acodec", "pcm_s16le",
-         "-ar", str(sample_rate), "-ac", "1", wav_path, "-y"],
-        capture_output=True, text=True,
-    )
+    cmd = [ffmpeg, "-i", mov_path, "-vn", "-acodec", "pcm_s16le",
+           "-ar", str(sample_rate), "-ac", "1"]
+    if max_duration is not None:
+        cmd += ["-t", str(max_duration)]
+    cmd += [wav_path, "-y"]
+    result = subprocess.run(cmd, capture_output=True, text=True)
     if not os.path.exists(wav_path):
         raise RuntimeError(f"ffmpeg failed: {result.stderr[:500]}")
     with wave.open(wav_path, "rb") as w:
@@ -716,6 +717,45 @@ def export_synced_frames(result, left_mov=None, right_mov=None, dst_dir=None, ma
 
     print(f"  Done! Saved to: {dst_dir}")
     return dst_dir
+
+
+def iter_synced_frames(result, left_mov, right_mov, max_frames=None):
+    """싱크된 프레임 쌍을 메모리에서 직접 yield하는 제너레이터.
+
+    디스크 JPEG I/O 없이 cv2.VideoCapture로 직접 디코딩.
+    yields (left_frame, right_frame) BGR numpy 배열 쌍.
+    """
+    fps = result["fps"]
+    l_start = result["left_start"] - 1  # 0-based
+    r_start = result["right_start"] - 1
+
+    total_l = get_frame_count(left_mov)
+    total_r = get_frame_count(right_mov)
+    overlap = min(total_l - l_start, total_r - r_start)
+
+    if overlap <= 0:
+        return
+
+    if max_frames is not None:
+        overlap = min(overlap, max_frames)
+
+    cap_l = cv2.VideoCapture(left_mov)
+    cap_r = cv2.VideoCapture(right_mov)
+
+    # 시작 프레임으로 seek
+    cap_l.set(cv2.CAP_PROP_POS_FRAMES, l_start)
+    cap_r.set(cv2.CAP_PROP_POS_FRAMES, r_start)
+
+    try:
+        for _ in range(overlap):
+            ret_l, frame_l = cap_l.read()
+            ret_r, frame_r = cap_r.read()
+            if not ret_l or not ret_r:
+                break
+            yield frame_l, frame_r
+    finally:
+        cap_l.release()
+        cap_r.release()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
