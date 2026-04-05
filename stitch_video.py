@@ -197,6 +197,9 @@ class PanoramaStitcher:
         self._build_combined_maps()
         self._precompute_blend_weight()
 
+        # ── 노출 보정 LUT (첫 프레임에서 계산) ──
+        self._exposure_luts = None
+
         # ── GPU remap 맵 업로드 ──
         self._gpu_maps = None
         if HAS_CUDA and self._left_combined_maps is not None:
@@ -436,6 +439,43 @@ class PanoramaStitcher:
         coords = cv2.findNonZero(gray)
         self._crop_rect = cv2.boundingRect(coords) if coords is not None else None
 
+    # ── 노출 보정 ─────────────────────────────────────────────────────
+    def _compute_exposure_luts(self, canvas_left, warped_right):
+        """첫 프레임의 겹침 영역 평균 밝기로 노출 보정 LUT를 생성한다.
+
+        카메라 고정이므로 gain은 전 프레임에 동일하게 적용된다.
+        """
+        overlap_1c = self._overlap_mask_3c[:, :, 0]
+        l_pixels = canvas_left[overlap_1c].reshape(-1, 3).astype(np.float64)
+        r_pixels = warped_right[overlap_1c].reshape(-1, 3).astype(np.float64)
+
+        mean_l = l_pixels.mean(axis=0)  # BGR
+        mean_r = r_pixels.mean(axis=0)
+        target = (mean_l + mean_r) / 2.0
+
+        base = np.arange(256, dtype=np.float64)
+
+        def make_luts(mean_val):
+            gains = np.where(mean_val > 1, target / mean_val, 1.0)
+            return tuple(
+                np.clip(base * gains[c], 0, 255).astype(np.uint8)
+                for c in range(3)
+            )
+
+        self._exposure_luts = (make_luts(mean_l), make_luts(mean_r))
+
+        gain_l = target / np.maximum(mean_l, 1)
+        gain_r = target / np.maximum(mean_r, 1)
+        print(f"  Exposure compensation: "
+              f"L=[{gain_l[2]:.3f}, {gain_l[1]:.3f}, {gain_l[0]:.3f}] "
+              f"R=[{gain_r[2]:.3f}, {gain_r[1]:.3f}, {gain_r[0]:.3f}]")
+
+    @staticmethod
+    def _apply_lut(img, luts):
+        """3채널 LUT를 적용한다 (cv2.LUT 기반, 매우 빠름)."""
+        b, g, r = cv2.split(img)
+        return cv2.merge([cv2.LUT(b, luts[0]), cv2.LUT(g, luts[1]), cv2.LUT(r, luts[2])])
+
     # ── 스티칭 ───────────────────────────────────────────────────────
     def stitch(self, left_img, right_img, crop=True):
         """좌/우 이미지를 스티칭한다.
@@ -474,6 +514,14 @@ class PanoramaStitcher:
             # planar 모드: 기존 방식
             canvas_left = cv2.warpPerspective(left_img, self.T, canvas_size)
             warped_right = cv2.warpPerspective(right_img, self.H_translated, canvas_size)
+
+        # 2.5) 노출 보정 (첫 프레임에서 LUT 계산 후 캐싱)
+        if self._has_overlap:
+            if self._exposure_luts is None:
+                self._compute_exposure_luts(canvas_left, warped_right)
+            lut_l, lut_r = self._exposure_luts
+            canvas_left = self._apply_lut(canvas_left, lut_l)
+            warped_right = self._apply_lut(warped_right, lut_r)
 
         # 3) uint8 블렌딩 (float32 변환 없음)
         result = np.zeros((self.canvas_h, self.canvas_w, 3), dtype=np.uint8)
@@ -593,6 +641,7 @@ def batch_stitch(left_dir, right_dir, calibration_path, output_dir,
         '_blend_alpha_3c': stitcher._blend_alpha_3c,
         '_has_overlap': stitcher._has_overlap,
         '_crop_rect': stitcher._crop_rect,
+        '_exposure_luts': stitcher._exposure_luts,
         '_gpu_maps': None,  # GPU는 프로세스 간 공유 불가
     }
 
