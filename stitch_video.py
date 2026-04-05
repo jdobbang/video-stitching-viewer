@@ -182,6 +182,7 @@ class PanoramaStitcher:
         # ── 호모그래피 / 캔버스 / 블렌딩 사전 계산 ──
         self._compute_homography()
         self._compute_canvas_params()
+        self._build_combined_maps()
         self._precompute_blend_weight()
 
         print(f"Stitcher initialized: {method} method")
@@ -298,6 +299,52 @@ class PanoramaStitcher:
 
         self.H_translated = self.T @ self.H
 
+    # ── 합성 remap 맵 사전 계산 ────────────────────────────────────
+    def _build_combined_maps(self):
+        """cylindrical warp + 캔버스 배치를 하나의 remap 맵으로 합성한다.
+
+        remap은 dst 픽셀 → src 픽셀 역매핑이므로,
+        캔버스 좌표 (canvas_h x canvas_w) → 원본 이미지 좌표 (h x w) 맵을 만든다.
+
+        좌측: canvas(dst) → T역변환 → cylindrical 좌표 → 역투영 → 원본 픽셀
+        우측: canvas(dst) → H_translated 역변환 → cylindrical 좌표 → 역투영 → 원본 픽셀
+        """
+        self._left_combined_maps = None
+        self._right_combined_maps = None
+
+        if self._cyl_maps is None:
+            return
+
+        cx, cy_c = self.w / 2, self.h / 2
+        f = self.focal_length
+
+        # 캔버스 좌표 그리드
+        xs = np.arange(self.canvas_w, dtype=np.float64)
+        ys = np.arange(self.canvas_h, dtype=np.float64)
+        grid_x, grid_y = np.meshgrid(xs, ys)
+
+        # ── 좌측: canvas → T^-1 → cylindrical 좌표 → 원본 픽셀 ──
+        # T는 단순 평행이동이므로 T^-1은 오프셋을 빼는 것
+        cyl_x = grid_x - self.offset_x
+        cyl_y = grid_y - self.offset_y
+
+        # cylindrical 역투영: cyl 좌표 → 원본 planar 좌표
+        theta = (cyl_x - cx) / f
+        left_mx = (f * np.tan(theta) + cx).astype(np.float32)
+        left_my = ((cyl_y - cy_c) / np.cos(theta) + cy_c).astype(np.float32)
+        self._left_combined_maps = (left_mx, left_my)
+
+        # ── 우측: canvas → H_translated^-1 → cylindrical 좌표 → 원본 픽셀 ──
+        H_inv = np.linalg.inv(self.H_translated)
+        denom = H_inv[2, 0] * grid_x + H_inv[2, 1] * grid_y + H_inv[2, 2]
+        mid_x = (H_inv[0, 0] * grid_x + H_inv[0, 1] * grid_y + H_inv[0, 2]) / denom
+        mid_y = (H_inv[1, 0] * grid_x + H_inv[1, 1] * grid_y + H_inv[1, 2]) / denom
+
+        theta_r = (mid_x - cx) / f
+        right_mx = (f * np.tan(theta_r) + cx).astype(np.float32)
+        right_my = ((mid_y - cy_c) / np.cos(theta_r) + cy_c).astype(np.float32)
+        self._right_combined_maps = (right_mx, right_my)
+
     # ── 블렌딩 마스크 사전 계산 ──────────────────────────────────────
     def _precompute_blend_weight(self):
         """좌/우 마스크와 겹침 영역 선형 블렌딩 가중치를 사전 계산한다.
@@ -305,13 +352,21 @@ class PanoramaStitcher:
         카메라 배치가 고정이므로 겹침 영역은 매 프레임 동일하다.
         """
         dummy = np.ones((self.h, self.w, 3), dtype=np.uint8) * 255
-        if self._cyl_maps is not None:
-            dummy = cylindrical_warp(dummy, self.focal_length, maps=self._cyl_maps)
 
-        warped_right = cv2.warpPerspective(
-            dummy, self.H_translated, (self.canvas_w, self.canvas_h))
-        canvas_left = cv2.warpPerspective(
-            dummy, self.T, (self.canvas_w, self.canvas_h))
+        if self._left_combined_maps is not None:
+            canvas_left = cv2.remap(
+                dummy, self._left_combined_maps[0], self._left_combined_maps[1],
+                cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
+            warped_right = cv2.remap(
+                dummy, self._right_combined_maps[0], self._right_combined_maps[1],
+                cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
+        else:
+            if self._cyl_maps is not None:
+                dummy = cylindrical_warp(dummy, self.focal_length, maps=self._cyl_maps)
+            warped_right = cv2.warpPerspective(
+                dummy, self.H_translated, (self.canvas_w, self.canvas_h))
+            canvas_left = cv2.warpPerspective(
+                dummy, self.T, (self.canvas_w, self.canvas_h))
 
         mask_left = (canvas_left > 0).any(axis=2).astype(np.float32)
         mask_right = (warped_right > 0).any(axis=2).astype(np.float32)
@@ -326,19 +381,31 @@ class PanoramaStitcher:
                 blend_weight[y, x_start:x_end + 1] = np.linspace(
                     0, 1, x_end - x_start + 1)
 
-        # 3D 마스크로 캐싱 (프레임별 연산 최소화)
-        self._mask_left_only = (mask_left * (1 - mask_right))[:, :, np.newaxis]
-        self._mask_right_only = (mask_right * (1 - mask_left))[:, :, np.newaxis]
-        self._blend_left = ((1 - blend_weight) * overlap)[:, :, np.newaxis]
-        self._blend_right = (blend_weight * overlap)[:, :, np.newaxis]
+        # uint8 마스크로 캐싱 (프레임별 float32 변환 제거)
+        mask_left_only = (mask_left * (1 - mask_right)).astype(bool)
+        mask_right_only = (mask_right * (1 - mask_left)).astype(bool)
+        overlap_mask = overlap.astype(bool)
+
+        # 3채널 bool 마스크
+        self._mask_left_only_3c = np.stack([mask_left_only] * 3, axis=2)
+        self._mask_right_only_3c = np.stack([mask_right_only] * 3, axis=2)
+        self._overlap_mask_3c = np.stack([overlap_mask] * 3, axis=2)
+
+        # 블렌딩 alpha를 uint16으로 저장 (0~256 범위, 정수 나눗셈용)
+        # alpha=0 → 좌측 100%, alpha=256 → 우측 100%
+        self._blend_alpha = (blend_weight * 256).astype(np.uint16)
+        self._blend_alpha_3c = np.stack([self._blend_alpha] * 3, axis=2)
+        self._has_overlap = np.any(overlap_mask)
 
         # 크롭 영역 사전 계산
-        composite = np.clip(
-            canvas_left * self._mask_left_only
-            + warped_right * self._mask_right_only
-            + canvas_left * self._blend_left
-            + warped_right * self._blend_right,
-            0, 255).astype(np.uint8)
+        composite = np.zeros((self.canvas_h, self.canvas_w, 3), dtype=np.uint8)
+        composite[self._mask_left_only_3c] = canvas_left[self._mask_left_only_3c]
+        composite[self._mask_right_only_3c] = warped_right[self._mask_right_only_3c]
+        if np.any(overlap_mask):
+            alpha = self._blend_alpha_3c[self._overlap_mask_3c].astype(np.uint16)
+            l_vals = canvas_left[self._overlap_mask_3c].astype(np.uint16)
+            r_vals = warped_right[self._overlap_mask_3c].astype(np.uint16)
+            composite[self._overlap_mask_3c] = ((l_vals * (256 - alpha) + r_vals * alpha) >> 8).astype(np.uint8)
         gray = cv2.cvtColor(composite, cv2.COLOR_BGR2GRAY)
         coords = cv2.findNonZero(gray)
         self._crop_rect = cv2.boundingRect(coords) if coords is not None else None
@@ -355,27 +422,36 @@ class PanoramaStitcher:
         Returns:
             스티칭된 파노라마 이미지
         """
-        # 1) cylindrical 투영
-        if self._cyl_maps is not None:
-            left_proc = cylindrical_warp(left_img, self.focal_length, maps=self._cyl_maps)
-            right_proc = cylindrical_warp(right_img, self.focal_length, maps=self._cyl_maps)
+        canvas_size = (self.canvas_w, self.canvas_h)
+
+        # 1+2) 합성 remap 맵으로 cylindrical warp + 캔버스 배치를 1회로 처리
+        if self._left_combined_maps is not None:
+            canvas_left = cv2.remap(
+                left_img, self._left_combined_maps[0], self._left_combined_maps[1],
+                cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
+            warped_right = cv2.remap(
+                right_img, self._right_combined_maps[0], self._right_combined_maps[1],
+                cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
         else:
-            left_proc = left_img
-            right_proc = right_img
+            # planar 모드: 기존 방식
+            canvas_left = cv2.warpPerspective(left_img, self.T, canvas_size)
+            warped_right = cv2.warpPerspective(right_img, self.H_translated, canvas_size)
 
-        # 2) 캔버스에 배치 (좌: 평행이동, 우: 호모그래피)
-        warped_right = cv2.warpPerspective(
-            right_proc, self.H_translated, (self.canvas_w, self.canvas_h))
-        canvas_left = cv2.warpPerspective(
-            left_proc, self.T, (self.canvas_w, self.canvas_h))
+        # 3) uint8 블렌딩 (float32 변환 없음)
+        result = np.zeros((self.canvas_h, self.canvas_w, 3), dtype=np.uint8)
 
-        # 3) 블렌딩 합성 (사전 계산된 마스크 사용)
-        result = np.clip(
-            canvas_left.astype(np.float32) * self._mask_left_only
-            + warped_right.astype(np.float32) * self._mask_right_only
-            + canvas_left.astype(np.float32) * self._blend_left
-            + warped_right.astype(np.float32) * self._blend_right,
-            0, 255).astype(np.uint8)
+        # 비겹침 영역: 직접 복사
+        result[self._mask_left_only_3c] = canvas_left[self._mask_left_only_3c]
+        result[self._mask_right_only_3c] = warped_right[self._mask_right_only_3c]
+
+        # 겹침 영역: uint16 정수 블렌딩 (float 없이)
+        if self._has_overlap:
+            alpha = self._blend_alpha_3c[self._overlap_mask_3c].astype(np.uint16)
+            l_vals = canvas_left[self._overlap_mask_3c].astype(np.uint16)
+            r_vals = warped_right[self._overlap_mask_3c].astype(np.uint16)
+            result[self._overlap_mask_3c] = (
+                (l_vals * (256 - alpha) + r_vals * alpha) >> 8
+            ).astype(np.uint8)
 
         # 4) 크롭
         if crop and self._crop_rect is not None:
@@ -471,10 +547,13 @@ def batch_stitch(left_dir, right_dir, calibration_path, output_dir,
         'offset_x': stitcher.offset_x, 'offset_y': stitcher.offset_y,
         'T': stitcher.T, 'H_translated': stitcher.H_translated,
         '_cyl_maps': stitcher._cyl_maps,
-        '_mask_left_only': stitcher._mask_left_only,
-        '_mask_right_only': stitcher._mask_right_only,
-        '_blend_left': stitcher._blend_left,
-        '_blend_right': stitcher._blend_right,
+        '_left_combined_maps': stitcher._left_combined_maps,
+        '_right_combined_maps': stitcher._right_combined_maps,
+        '_mask_left_only_3c': stitcher._mask_left_only_3c,
+        '_mask_right_only_3c': stitcher._mask_right_only_3c,
+        '_overlap_mask_3c': stitcher._overlap_mask_3c,
+        '_blend_alpha_3c': stitcher._blend_alpha_3c,
+        '_has_overlap': stitcher._has_overlap,
         '_crop_rect': stitcher._crop_rect,
     }
 
