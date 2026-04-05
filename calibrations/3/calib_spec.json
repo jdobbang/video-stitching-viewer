@@ -2,6 +2,17 @@
   "point_pairs": [
     {
       "left": [
+        1011.0,
+        399.0
+      ],
+      "right": [
+        252.0,
+        405.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
         911.0,
         595.0
       ],
@@ -13,12 +24,23 @@
     },
     {
       "left": [
-        1242.0,
-        460.0
+        1073.0,
+        494.0
       ],
       "right": [
-        448.0,
-        457.0
+        306.0,
+        494.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        921.0,
+        227.0
+      ],
+      "right": [
+        169.0,
+        231.0
       ],
       "source": "disk_lightglue_auto"
     },
@@ -36,66 +58,132 @@
     {
       "left": [
         801.0,
-        132.0
-      ],
-      "right": [
-        34.0,
-        116.0
-      ],
-      "source": "disk_lightglue_auto"
-    },
-    {
-      "left": [
-        803.0,
-        574.0
-      ],
-      "right": [
-        15.0,
-        598.0
-      ],
-      "source": "disk_lightglue_auto"
-    },
-    {
-      "left": [
-        1058.0,
-        547.0
-      ],
-      "right": [
-        290.0,
-        545.0
-      ],
-      "source": "disk_lightglue_auto"
-    },
-    {
-      "left": [
-        852.0,
-        619.0
-      ],
-      "right": [
-        72.0,
-        640.0
-      ],
-      "source": "disk_lightglue_auto"
-    },
-    {
-      "left": [
-        1093.0,
-        596.0
-      ],
-      "right": [
-        320.0,
-        588.0
-      ],
-      "source": "disk_lightglue_auto"
-    },
-    {
-      "left": [
-        1028.0,
         641.0
       ],
       "right": [
-        258.0,
-        638.0
+        9.0,
+        672.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        860.0,
+        513.0
+      ],
+      "right": [
+        87.0,
+        526.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        1020.0,
+        618.0
+      ],
+      "right": [
+        251.0,
+        617.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        1153.0,
+        171.0
+      ],
+      "right": [
+        388.0,
+        201.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        1000.0,
+        582.0
+      ],
+      "right": [
+        233.0,
+        584.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        945.0,
+        520.0
+      ],
+      "right": [
+        180.0,
+        527.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        848.0,
+        623.0
+      ],
+      "right": [
+        67.0,
+        645.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        1088.0,
+        162.0
+      ],
+      "right": [
+        333.0,
+        186.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        940.0,
+        617.0
+      ],
+      "right": [
+        170.0,
+        626.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        926.0,
+        377.0
+      ],
+      "right": [
+        167.0,
+        383.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        1101.0,
+        370.0
+      ],
+      "right": [
+        336.0,
+        378.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        842.0,
+        587.0
+      ],
+      "right": [
+        62.0,
+        607.0
       ],
       "source": "disk_lightglue_auto"
     },
@@ -112,67 +200,67 @@
     },
     {
       "left": [
-        1203.0,
-        625.0
+        982.0,
+        474.0
       ],
       "right": [
-        412.0,
-        603.0
+        220.0,
+        479.0
       ],
       "source": "disk_lightglue_auto"
     },
     {
       "left": [
-        1065.0,
-        454.0
+        1066.0,
+        653.0
       ],
       "right": [
-        300.0,
-        457.0
+        293.0,
+        645.0
       ],
       "source": "disk_lightglue_auto"
     },
     {
       "left": [
-        949.0,
-        519.0
+        1103.0,
+        541.0
       ],
       "right": [
-        184.0,
-        526.0
+        331.0,
+        536.0
       ],
       "source": "disk_lightglue_auto"
     },
     {
       "left": [
-        1004.0,
-        610.0
+        1042.0,
+        528.0
       ],
       "right": [
-        236.0,
-        611.0
+        276.0,
+        528.0
       ],
       "source": "disk_lightglue_auto"
     },
     {
       "left": [
-        1007.0,
-        179.0
+        1012.0,
+        669.0
       ],
       "right": [
-        256.0,
-        193.0
+        241.0,
+        668.0
       ],
       "source": "disk_lightglue_auto"
     },
     {
       "left": [
-        1070.0,
-        652.0
+        972.0,
+        622.0
       ],
       "right": [
-        297.0,
-        643.0
+        203.0,
+        627.0
       ],
       "source": "disk_lightglue_auto"
     },
@@ -189,23 +277,100 @@
     },
     {
       "left": [
-        1043.0,
-        446.0
+        975.0,
+        192.0
       ],
       "right": [
-        280.0,
-        450.0
+        226.0,
+        202.0
       ],
       "source": "disk_lightglue_auto"
     },
     {
       "left": [
-        844.0,
-        487.0
+        927.0,
+        498.0
       ],
       "right": [
-        69.0,
-        500.0
+        162.0,
+        506.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        1117.0,
+        645.0
+      ],
+      "right": [
+        339.0,
+        631.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        961.0,
+        490.0
+      ],
+      "right": [
+        198.0,
+        496.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        942.0,
+        206.0
+      ],
+      "right": [
+        192.0,
+        212.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        851.0,
+        562.0
+      ],
+      "right": [
+        74.0,
+        579.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        1031.0,
+        422.0
+      ],
+      "right": [
+        270.0,
+        427.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        1167.0,
+        210.0
+      ],
+      "right": [
+        398.0,
+        237.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        881.0,
+        417.0
+      ],
+      "right": [
+        116.0,
+        424.0
       ],
       "source": "disk_lightglue_auto"
     },
@@ -222,34 +387,177 @@
     },
     {
       "left": [
-        1234.0,
-        549.0
+        799.0,
+        581.0
       ],
       "right": [
-        439.0,
-        534.0
+        10.0,
+        606.0
       ],
       "source": "disk_lightglue_auto"
     },
     {
       "left": [
-        976.0,
-        511.0
+        1129.0,
+        603.0
       ],
       "right": [
-        212.0,
-        516.0
+        351.0,
+        591.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        871.0,
+        508.0
+      ],
+      "right": [
+        100.0,
+        520.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        946.0,
+        670.0
+      ],
+      "right": [
+        174.0,
+        679.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        943.0,
+        639.0
+      ],
+      "right": [
+        172.0,
+        648.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        1079.0,
+        604.0
+      ],
+      "right": [
+        307.0,
+        597.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        988.0,
+        523.0
+      ],
+      "right": [
+        224.0,
+        527.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        1093.0,
+        318.0
+      ],
+      "right": [
+        331.0,
+        330.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        1052.0,
+        414.0
+      ],
+      "right": [
+        290.0,
+        419.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        1099.0,
+        200.0
+      ],
+      "right": [
+        341.0,
+        222.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        1270.0,
+        549.0
+      ],
+      "right": [
+        466.0,
+        532.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        902.0,
+        542.0
+      ],
+      "right": [
+        133.0,
+        553.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        850.0,
+        486.0
+      ],
+      "right": [
+        77.0,
+        498.0
       ],
       "source": "disk_lightglue_auto"
     },
     {
       "left": [
         1198.0,
-        174.0
+        505.0
       ],
       "right": [
-        423.0,
-        208.0
+        412.0,
+        498.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        961.0,
+        445.0
+      ],
+      "right": [
+        200.0,
+        451.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        1212.0,
+        451.0
+      ],
+      "right": [
+        425.0,
+        450.0
       ],
       "source": "disk_lightglue_auto"
     },
@@ -266,100 +574,287 @@
     },
     {
       "left": [
-        907.0,
-        582.0
+        1242.0,
+        576.0
       ],
       "right": [
-        136.0,
-        594.0
+        444.0,
+        557.0
       ],
       "source": "disk_lightglue_auto"
     },
     {
       "left": [
-        1046.0,
-        252.0
+        1180.0,
+        604.0
       ],
       "right": [
-        290.0,
-        266.0
+        394.0,
+        587.0
       ],
       "source": "disk_lightglue_auto"
     },
     {
       "left": [
-        824.0,
-        532.0
+        1121.0,
+        679.0
       ],
       "right": [
-        43.0,
-        550.0
+        341.0,
+        662.0
       ],
       "source": "disk_lightglue_auto"
     },
     {
       "left": [
-        864.0,
-        684.0
+        1129.0,
+        507.0
       ],
       "right": [
-        83.0,
-        707.0
+        355.0,
+        503.0
       ],
       "source": "disk_lightglue_auto"
     },
     {
       "left": [
-        1097.0,
-        139.0
+        997.0,
+        544.0
       ],
       "right": [
-        340.0,
-        166.0
+        232.0,
+        547.0
       ],
       "source": "disk_lightglue_auto"
     },
     {
       "left": [
-        1139.0,
-        482.0
+        1028.0,
+        288.0
       ],
       "right": [
-        364.0,
+        273.0,
+        299.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        886.0,
+        596.0
+      ],
+      "right": [
+        112.0,
+        611.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        1080.0,
+        475.0
+      ],
+      "right": [
+        313.0,
+        476.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        1122.0,
+        428.0
+      ],
+      "right": [
+        352.0,
+        431.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        1045.0,
         480.0
+      ],
+      "right": [
+        281.0,
+        482.0
       ],
       "source": "disk_lightglue_auto"
     },
     {
       "left": [
         988.0,
-        464.0
+        345.0
       ],
       "right": [
-        226.0,
-        469.0
+        232.0,
+        352.0
       ],
       "source": "disk_lightglue_auto"
     },
     {
       "left": [
-        868.0,
-        145.0
+        1082.0,
+        597.0
       ],
       "right": [
-        112.0,
-        141.0
+        310.0,
+        590.0
       ],
       "source": "disk_lightglue_auto"
     },
     {
       "left": [
-        785.0,
-        137.0
+        934.0,
+        449.0
       ],
       "right": [
-        14.0,
-        119.0
+        172.0,
+        456.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        1165.0,
+        591.0
+      ],
+      "right": [
+        382.0,
+        577.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        1081.0,
+        356.0
+      ],
+      "right": [
+        319.0,
+        365.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        1216.0,
+        546.0
+      ],
+      "right": [
+        425.0,
+        533.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        1014.0,
+        598.0
+      ],
+      "right": [
+        246.0,
+        598.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        798.0,
+        560.0
+      ],
+      "right": [
+        10.0,
+        583.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        882.0,
+        609.0
+      ],
+      "right": [
+        107.0,
+        625.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        1008.0,
+        696.0
+      ],
+      "right": [
+        236.0,
+        695.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        1234.0,
+        605.0
+      ],
+      "right": [
+        437.0,
+        583.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        1210.0,
+        525.0
+      ],
+      "right": [
+        421.0,
+        515.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        848.0,
+        473.0
+      ],
+      "right": [
+        75.0,
+        484.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        954.0,
+        450.0
+      ],
+      "right": [
+        193.0,
+        456.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        1056.0,
+        214.0
+      ],
+      "right": [
+        302.0,
+        231.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        1119.0,
+        419.0
+      ],
+      "right": [
+        350.0,
+        423.0
       ],
       "source": "disk_lightglue_auto"
     }
@@ -368,26 +863,24 @@
     1280,
     720
   ],
-  "left_image": "frames_sync_pair3/left/frame_000001.jpg",
-  "right_image": "frames_sync_pair3/right/frame_000001.jpg",
   "method": "lightglue",
+  "left_focal_mm": 24,
+  "right_focal_mm": 26,
   "homography": [
     [
-      0.40293118053201443,
-      0.030901468433292216,
-      769.7462653663536
+      0.4054811652447372,
+      0.042029316081540535,
+      765.8537151220188
     ],
     [
-      -0.192925679747979,
-      0.9018501993197655,
-      31.476762430582653
+      -0.19525651826129564,
+      0.9051470673213377,
+      31.90893821369137
     ],
     [
-      -0.0004932063230328531,
-      -5.692757113133718e-06,
-      1.0
+      -0.0004952673427640119,
+      6.040817875826633e-07,
+      0.9999999999999999
     ]
-  ],
-  "left_focal_mm": 24,
-  "right_focal_mm": 26
+  ]
 }

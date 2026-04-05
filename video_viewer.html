@@ -518,7 +518,8 @@
                 const planeHeight = planeWidth / (IMG_WIDTH / IMG_HEIGHT);
                 
                 geometry = new THREE.PlaneGeometry(planeWidth, planeHeight, 1, 1);
-                geometry.translate(0, 0, -radius);
+                geometry.rotateY(Math.PI / 2);
+                geometry.translate(radius, 0, 0);
                 
             } else if (mode === 'sphere') {
                 const phiLength = TOTAL_FOV_RAD * curve;
