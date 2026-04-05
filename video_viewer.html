@@ -180,7 +180,10 @@
     </div>
     
     <div class="panel" id="info" style="display: none;">
-        🖱️ 드래그: 시점 이동 &nbsp;|&nbsp; 🔍 스크롤: 줌 &nbsp;|&nbsp; ⌨️ ←→: 회전
+        <div>🖱️ 드래그: 시점 이동 &nbsp;|&nbsp; 🔍 스크롤: 줌</div>
+        <div style="margin-top: 4px; font-size: 11px; color: rgba(255,255,255,0.5);">
+            ← → ↑ ↓ 이동 &nbsp;|&nbsp; Q/E 회전 &nbsp;|&nbsp; W/S FOV
+        </div>
     </div>
     
     <div class="panel" id="mode-panel" style="display: none;">
@@ -223,22 +226,6 @@
         </div>
         
         <div class="control-group">
-            <label>곡률 (Curve)</label>
-            <div class="control-row">
-                <input type="range" id="curve" min="0.5" max="2.0" step="0.05" value="1.0">
-                <span class="value" id="curve-val">1.00</span>
-            </div>
-        </div>
-        
-        <div class="control-group">
-            <label>거리 (Distance)</label>
-            <div class="control-row">
-                <input type="range" id="distance" min="0.5" max="3.0" step="0.1" value="1.0">
-                <span class="value" id="distance-val">1.0</span>
-            </div>
-        </div>
-        
-        <div class="control-group">
             <label>비디오 회전</label>
             <div class="control-row">
                 <button class="btn" id="rotate-ccw" style="width: auto; padding: 8px 12px;" title="반시계방향 90°">↺</button>
@@ -258,14 +245,24 @@
         let lon = 0, onPointerDownLon = 0;
         let lat = 0, onPointerDownLat = 0;
         let videoRotation = 0; // 비디오 회전 각도 (도)
-        let rotationSpeed = 0; // 현재 회전 속도
-        const ROTATION_RATE = 0.1; // 회전 속도 (도/프레임)
-        
+
         // Default parameters (will be updated based on video)
         let IMG_WIDTH = 2850;
         let IMG_HEIGHT = 1109;
         let FOCAL_LENGTH = 1920;
         let TOTAL_FOV_RAD = IMG_WIDTH / FOCAL_LENGTH;
+
+        // --- Smooth keyboard control system ---
+        const keysPressed = new Set();
+        const velocity = { lon: 0, lat: 0, rotation: 0, fov: 0 };
+        const ACCEL = 0.06;       // 가속도
+        const DAMPING = 0.92;     // 감쇠 (1에 가까울수록 관성 큼)
+        const MAX_VEL = {
+            pan: 1.2,
+            rotation: 0.15,
+            fov: 0.5,
+        };
+        const VEL_THRESHOLD = 0.001; // 이 이하면 0으로 스냅
 
         const container = document.getElementById('container');
         const filePanel = document.getElementById('file-panel');
@@ -408,49 +405,45 @@
                 document.getElementById('fov-val').textContent = e.target.value + '°';
             });
 
-            document.getElementById('curve').addEventListener('input', (e) => {
-                document.getElementById('curve-val').textContent = parseFloat(e.target.value).toFixed(2);
-                createGeometry(currentMode);
-            });
-            
-            document.getElementById('distance').addEventListener('input', (e) => {
-                document.getElementById('distance-val').textContent = parseFloat(e.target.value).toFixed(1);
-                createGeometry(currentMode);
-            });
-
             document.getElementById('reset').addEventListener('click', resetView);
             
             // 비디오 회전 버튼 (마우스 누르고 있는 동안 회전)
             const rotateCcwBtn = document.getElementById('rotate-ccw');
             const rotateCwBtn = document.getElementById('rotate-cw');
-            
-            rotateCcwBtn.addEventListener('mousedown', () => rotationSpeed = -ROTATION_RATE);
-            rotateCcwBtn.addEventListener('mouseup', () => rotationSpeed = 0);
-            rotateCcwBtn.addEventListener('mouseleave', () => rotationSpeed = 0);
-            rotateCcwBtn.addEventListener('touchstart', (e) => { e.preventDefault(); rotationSpeed = -ROTATION_RATE; });
-            rotateCcwBtn.addEventListener('touchend', () => rotationSpeed = 0);
-            
-            rotateCwBtn.addEventListener('mousedown', () => rotationSpeed = ROTATION_RATE);
-            rotateCwBtn.addEventListener('mouseup', () => rotationSpeed = 0);
-            rotateCwBtn.addEventListener('mouseleave', () => rotationSpeed = 0);
-            rotateCwBtn.addEventListener('touchstart', (e) => { e.preventDefault(); rotationSpeed = ROTATION_RATE; });
-            rotateCwBtn.addEventListener('touchend', () => rotationSpeed = 0);
-            
-            // 방향키로 회전
+
+            const holdKey = (key) => ({
+                md() { keysPressed.add(key); },
+                mu() { keysPressed.delete(key); }
+            });
+            const ccwH = holdKey('_ccw'), cwH = holdKey('_cw');
+            rotateCcwBtn.addEventListener('mousedown', ccwH.md);
+            rotateCcwBtn.addEventListener('mouseup', ccwH.mu);
+            rotateCcwBtn.addEventListener('mouseleave', ccwH.mu);
+            rotateCcwBtn.addEventListener('touchstart', (e) => { e.preventDefault(); ccwH.md(); });
+            rotateCcwBtn.addEventListener('touchend', ccwH.mu);
+            rotateCwBtn.addEventListener('mousedown', cwH.md);
+            rotateCwBtn.addEventListener('mouseup', cwH.mu);
+            rotateCwBtn.addEventListener('mouseleave', cwH.mu);
+            rotateCwBtn.addEventListener('touchstart', (e) => { e.preventDefault(); cwH.md(); });
+            rotateCwBtn.addEventListener('touchend', cwH.mu);
+
+            // 키보드 입력 추적 (e.code 사용 → 한영 상관없이 동작)
+            const codeMap = {
+                'ArrowLeft': 'arrowleft', 'ArrowRight': 'arrowright',
+                'ArrowUp': 'arrowup', 'ArrowDown': 'arrowdown',
+                'KeyQ': 'q', 'KeyE': 'e',
+                'KeyW': 'w', 'KeyS': 's',
+            };
             window.addEventListener('keydown', (e) => {
-                if (e.key === 'ArrowLeft') {
-                    rotationSpeed = -ROTATION_RATE;
-                    e.preventDefault();
-                } else if (e.key === 'ArrowRight') {
-                    rotationSpeed = ROTATION_RATE;
+                const mapped = codeMap[e.code];
+                if (mapped) {
+                    keysPressed.add(mapped);
                     e.preventDefault();
                 }
             });
-            
             window.addEventListener('keyup', (e) => {
-                if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-                    rotationSpeed = 0;
-                }
+                const mapped = codeMap[e.code];
+                if (mapped) keysPressed.delete(mapped);
             });
             
             // Mode buttons
@@ -480,10 +473,6 @@
             camera.updateProjectionMatrix();
             document.getElementById('fov').value = 50;
             document.getElementById('fov-val').textContent = '50°';
-            document.getElementById('curve').value = 1.0;
-            document.getElementById('curve-val').textContent = '1.00';
-            document.getElementById('distance').value = 1.0;
-            document.getElementById('distance-val').textContent = '1.0';
             createGeometry(currentMode);
         }
         
@@ -507,8 +496,8 @@
                 mesh.material.dispose();
             }
             
-            const curve = parseFloat(document.getElementById('curve').value);
-            const distance = parseFloat(document.getElementById('distance').value);
+            const curve = 1.0;
+            const distance = 1.0;
             const radius = 50 * distance;
             
             let geometry;
@@ -552,7 +541,7 @@
             mesh = new THREE.Mesh(geometry, material);
             
             if (mode === 'cylinder' || mode === 'sphere') {
-                mesh.rotation.y = Math.PI;
+                mesh.rotation.y = Math.PI / 2;
             }
             
             // 비디오 회전 적용
@@ -561,30 +550,44 @@
             scene.add(mesh);
         }
 
+        let prevPointerX = 0, prevPointerY = 0;
+
         function onPointerDown(event) {
             isUserInteracting = true;
             onPointerDownMouseX = event.clientX;
             onPointerDownMouseY = event.clientY;
+            prevPointerX = event.clientX;
+            prevPointerY = event.clientY;
             onPointerDownLon = lon;
             onPointerDownLat = lat;
+            // 드래그 시작하면 관성 초기화
+            velocity.lon = 0;
+            velocity.lat = 0;
         }
 
         function onPointerMove(event) {
             if (isUserInteracting) {
-                lon = (onPointerDownMouseX - event.clientX) * 0.15 + onPointerDownLon;
-                lat = (event.clientY - onPointerDownMouseY) * 0.15 + onPointerDownLat;
+                const dx = event.clientX - prevPointerX;
+                const dy = event.clientY - prevPointerY;
+                const fovScale = camera.fov / 50;
+                lon -= dx * 0.08 * fovScale;
+                lat += dy * 0.08 * fovScale;
+                // 마우스 이동 속도를 관성으로 전달
+                velocity.lon = -dx * 0.04 * fovScale;
+                velocity.lat = dy * 0.04 * fovScale;
+                prevPointerX = event.clientX;
+                prevPointerY = event.clientY;
             }
         }
 
         function onPointerUp() {
             isUserInteracting = false;
+            // velocity는 이미 설정되어 있으므로 감쇠로 자연스럽게 멈춤
         }
 
         function onWheel(event) {
-            camera.fov = Math.max(20, Math.min(90, camera.fov + event.deltaY * 0.05));
-            camera.updateProjectionMatrix();
-            document.getElementById('fov').value = Math.round(camera.fov);
-            document.getElementById('fov-val').textContent = Math.round(camera.fov) + '°';
+            // 스크롤을 관성 velocity에 누적
+            velocity.fov += event.deltaY * 0.012;
         }
 
         function onResize() {
@@ -593,16 +596,67 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
         }
 
-        function animate() {
-            requestAnimationFrame(animate);
-            
-            // 비디오 연속 회전
-            if (rotationSpeed !== 0 && mesh) {
-                videoRotation += rotationSpeed;
+        function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+        function snap(v) { return Math.abs(v) < VEL_THRESHOLD ? 0 : v; }
+
+        function updateSmoothControls() {
+            // FOV에 비례한 이동 스케일 (줌 인 → 느리게, 줌 아웃 → 빠르게)
+            const fovScale = camera.fov / 50;
+
+            // --- 가속 ---
+            // Pan (←→↑↓)
+            if (keysPressed.has('arrowleft'))  velocity.lon -= ACCEL * fovScale;
+            if (keysPressed.has('arrowright')) velocity.lon += ACCEL * fovScale;
+            if (keysPressed.has('arrowup'))    velocity.lat += ACCEL * fovScale;
+            if (keysPressed.has('arrowdown'))  velocity.lat -= ACCEL * fovScale;
+
+            // Rotation (Q/E + 버튼)
+            if (keysPressed.has('q') || keysPressed.has('_ccw')) velocity.rotation -= ACCEL * 0.3;
+            if (keysPressed.has('e') || keysPressed.has('_cw'))  velocity.rotation += ACCEL * 0.3;
+
+            // FOV (W/S)
+            if (keysPressed.has('w')) velocity.fov -= ACCEL * 0.8;
+            if (keysPressed.has('s')) velocity.fov += ACCEL * 0.8;
+
+            // --- 속도 제한 ---
+            velocity.lon      = clamp(velocity.lon,      -MAX_VEL.pan,      MAX_VEL.pan);
+            velocity.lat      = clamp(velocity.lat,      -MAX_VEL.pan,      MAX_VEL.pan);
+            velocity.rotation = clamp(velocity.rotation, -MAX_VEL.rotation, MAX_VEL.rotation);
+            velocity.fov      = clamp(velocity.fov,      -MAX_VEL.fov,      MAX_VEL.fov);
+
+            // --- 적용 ---
+
+            // Pan
+            lon += velocity.lon;
+            lat += velocity.lat;
+
+            // Rotation
+            if (velocity.rotation !== 0 && mesh) {
+                videoRotation += velocity.rotation;
                 mesh.rotation.z = THREE.MathUtils.degToRad(videoRotation);
             }
-            
-            lat = Math.max(-45, Math.min(45, lat));
+
+            // FOV
+            if (velocity.fov !== 0) {
+                camera.fov = clamp(camera.fov + velocity.fov, 20, 90);
+                camera.updateProjectionMatrix();
+                document.getElementById('fov').value = Math.round(camera.fov);
+                document.getElementById('fov-val').textContent = Math.round(camera.fov) + '\u00B0';
+            }
+
+            // --- 감쇠 ---
+            velocity.lon      = snap(velocity.lon      * DAMPING);
+            velocity.lat      = snap(velocity.lat      * DAMPING);
+            velocity.rotation = snap(velocity.rotation * DAMPING);
+            velocity.fov      = snap(velocity.fov      * DAMPING);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            updateSmoothControls();
+
+            lat = clamp(lat, -45, 45);
             const phi = THREE.MathUtils.degToRad(90 - lat);
             const theta = THREE.MathUtils.degToRad(lon);
 
