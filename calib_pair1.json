@@ -2,331 +2,397 @@
   "point_pairs": [
     {
       "left": [
-        1184.0,
-        186.0
+        1028.0,
+        455.0
       ],
       "right": [
-        293.0,
-        218.0
+        157.0,
+        485.0
       ],
       "source": "disk_lightglue_auto"
     },
     {
       "left": [
-        1045.0,
-        545.0
+        960.0,
+        558.0
       ],
       "right": [
-        150.0,
-        568.0
+        78.0,
+        596.0
       ],
       "source": "disk_lightglue_auto"
     },
     {
       "left": [
         981.0,
-        217.0
-      ],
-      "right": [
-        89.0,
-        196.0
-      ],
-      "source": "disk_lightglue_auto"
-    },
-    {
-      "left": [
-        936.0,
-        252.0
-      ],
-      "right": [
-        18.0,
-        225.0
-      ],
-      "source": "disk_lightglue_auto"
-    },
-    {
-      "left": [
-        1159.0,
-        522.0
-      ],
-      "right": [
-        261.0,
         514.0
       ],
-      "source": "disk_lightglue_auto"
-    },
-    {
-      "left": [
-        931.0,
-        208.0
-      ],
       "right": [
-        13.0,
-        166.0
+        104.0,
+        548.0
       ],
       "source": "disk_lightglue_auto"
     },
     {
       "left": [
-        1171.0,
-        355.0
+        934.0,
+        452.0
       ],
       "right": [
-        277.0,
-        363.0
+        55.0,
+        486.0
       ],
       "source": "disk_lightglue_auto"
     },
     {
       "left": [
-        1201.0,
-        212.0
+        1155.0,
+        402.0
       ],
       "right": [
-        304.0,
-        243.0
+        280.0,
+        431.0
       ],
       "source": "disk_lightglue_auto"
     },
     {
       "left": [
-        1063.0,
-        603.0
-      ],
-      "right": [
-        167.0,
+        1077.0,
         624.0
-      ],
-      "source": "disk_lightglue_auto"
-    },
-    {
-      "left": [
-        1086.0,
-        307.0
-      ],
-      "right": [
-        206.0,
-        314.0
-      ],
-      "source": "disk_lightglue_auto"
-    },
-    {
-      "left": [
-        1039.0,
-        578.0
-      ],
-      "right": [
-        141.0,
-        607.0
-      ],
-      "source": "disk_lightglue_auto"
-    },
-    {
-      "left": [
-        1015.0,
-        257.0
-      ],
-      "right": [
-        131.0,
-        251.0
-      ],
-      "source": "disk_lightglue_auto"
-    },
-    {
-      "left": [
-        1073.0,
-        225.0
       ],
       "right": [
         197.0,
-        230.0
+        648.0
       ],
       "source": "disk_lightglue_auto"
     },
     {
       "left": [
-        1009.0,
-        461.0
+        1189.0,
+        567.0
       ],
       "right": [
-        111.0,
-        483.0
-      ],
-      "source": "disk_lightglue_auto"
-    },
-    {
-      "left": [
-        981.0,
-        293.0
-      ],
-      "right": [
-        84.0,
-        286.0
-      ],
-      "source": "disk_lightglue_auto"
-    },
-    {
-      "left": [
-        1104.0,
-        216.0
-      ],
-      "right": [
-        227.0,
-        228.0
-      ],
-      "source": "disk_lightglue_auto"
-    },
-    {
-      "left": [
-        1190.0,
-        596.0
-      ],
-      "right": [
-        282.0,
-        573.0
-      ],
-      "source": "disk_lightglue_auto"
-    },
-    {
-      "left": [
-        1069.0,
-        445.0
-      ],
-      "right": [
-        182.0,
-        455.0
-      ],
-      "source": "disk_lightglue_auto"
-    },
-    {
-      "left": [
-        1206.0,
-        535.0
-      ],
-      "right": [
-        296.0,
-        516.0
-      ],
-      "source": "disk_lightglue_auto"
-    },
-    {
-      "left": [
-        1232.0,
-        227.0
-      ],
-      "right": [
-        324.0,
-        260.0
-      ],
-      "source": "disk_lightglue_auto"
-    },
-    {
-      "left": [
-        1193.0,
-        572.0
-      ],
-      "right": [
-        285.0,
-        551.0
-      ],
-      "source": "disk_lightglue_auto"
-    },
-    {
-      "left": [
-        1045.0,
-        523.0
-      ],
-      "right": [
-        151.0,
-        544.0
-      ],
-      "source": "disk_lightglue_auto"
-    },
-    {
-      "left": [
-        1144.0,
-        494.0
-      ],
-      "right": [
-        250.0,
-        491.0
-      ],
-      "source": "disk_lightglue_auto"
-    },
-    {
-      "left": [
-        1178.0,
-        233.0
-      ],
-      "right": [
-        287.0,
-        257.0
-      ],
-      "source": "disk_lightglue_auto"
-    },
-    {
-      "left": [
-        1145.0,
-        150.0
-      ],
-      "right": [
-        265.0,
-        177.0
-      ],
-      "source": "disk_lightglue_auto"
-    },
-    {
-      "left": [
-        1005.0,
-        520.0
-      ],
-      "right": [
-        102.0,
-        553.0
+        302.0,
+        581.0
       ],
       "source": "disk_lightglue_auto"
     },
     {
       "left": [
         950.0,
-        414.0
+        519.0
       ],
       "right": [
-        28.0,
-        436.0
+        69.0,
+        556.0
       ],
       "source": "disk_lightglue_auto"
     },
     {
       "left": [
-        1002.0,
-        407.0
+        1078.0,
+        391.0
       ],
       "right": [
-        105.0,
+        210.0,
         421.0
       ],
       "source": "disk_lightglue_auto"
     },
     {
       "left": [
-        1212.0,
-        451.0
+        1124.0,
+        618.0
       ],
       "right": [
-        303.0,
+        242.0,
+        636.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        1075.0,
+        662.0
+      ],
+      "right": [
+        193.0,
+        686.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        1030.0,
+        400.0
+      ],
+      "right": [
+        162.0,
+        430.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        1241.0,
+        171.0
+      ],
+      "right": [
+        361.0,
+        229.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        958.0,
+        589.0
+      ],
+      "right": [
+        74.0,
+        629.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        1123.0,
+        533.0
+      ],
+      "right": [
+        245.0,
+        555.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        1025.0,
+        433.0
+      ],
+      "right": [
+        155.0,
+        463.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        914.0,
+        412.0
+      ],
+      "right": [
+        34.0,
         444.0
       ],
       "source": "disk_lightglue_auto"
     },
     {
       "left": [
-        1159.0,
-        294.0
+        1199.0,
+        349.0
       ],
       "right": [
-        270.0,
-        308.0
+        320.0,
+        383.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        1011.0,
+        338.0
+      ],
+      "right": [
+        146.0,
+        368.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        1010.0,
+        621.0
+      ],
+      "right": [
+        129.0,
+        655.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        1116.0,
+        426.0
+      ],
+      "right": [
+        244.0,
+        454.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        1071.0,
+        553.0
+      ],
+      "right": [
+        195.0,
+        579.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        1154.0,
+        179.0
+      ],
+      "right": [
+        289.0,
+        227.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        1203.0,
+        467.0
+      ],
+      "right": [
+        318.0,
+        489.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        1100.0,
+        688.0
+      ],
+      "right": [
+        216.0,
+        707.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        1080.0,
+        522.0
+      ],
+      "right": [
+        205.0,
+        548.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        1150.0,
+        417.0
+      ],
+      "right": [
+        275.0,
+        445.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        1255.0,
+        425.0
+      ],
+      "right": [
+        362.0,
+        450.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        1210.0,
+        349.0
+      ],
+      "right": [
+        329.0,
+        383.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        1203.0,
+        630.0
+      ],
+      "right": [
+        311.0,
+        637.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        1141.0,
+        648.0
+      ],
+      "right": [
+        256.0,
+        662.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        1145.0,
+        488.0
+      ],
+      "right": [
+        267.0,
+        511.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        1114.0,
+        149.0
+      ],
+      "right": [
+        255.0,
+        195.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        1241.0,
+        549.0
+      ],
+      "right": [
+        346.0,
+        560.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        924.0,
+        577.0
+      ],
+      "right": [
+        35.0,
+        621.0
+      ],
+      "source": "disk_lightglue_auto"
+    },
+    {
+      "left": [
+        1067.0,
+        202.0
+      ],
+      "right": [
+        209.0,
+        239.0
       ],
       "source": "disk_lightglue_auto"
     }
@@ -340,18 +406,18 @@
   "method": "lightglue",
   "homography": [
     [
-      -0.5627685490449928,
-      0.023670392639161517,
-      917.6652236631295
+      0.3254714088715241,
+      0.06041873385189674,
+      863.217779891005
     ],
     [
-      -0.4418303938116315,
-      0.7407825851818253,
-      87.11149602136062
+      -0.21471072415163503,
+      0.9252641349238574,
+      2.643159757775724
     ],
     [
-      -0.001219029540273741,
-      -1.2258237488983523e-05,
+      -0.0005569965333724058,
+      1.1019469560653197e-05,
       1.0
     ]
   ]

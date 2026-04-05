@@ -646,7 +646,7 @@ def save_verification_frames(left_mov, right_mov, result, out_dir=None,
     return out_dir
 
 
-def export_synced_frames(result, left_mov=None, right_mov=None, dst_dir=None):
+def export_synced_frames(result, left_mov=None, right_mov=None, dst_dir=None, max_frames=None):
     """ffmpeg의 select 필터로 싱크 구간 프레임만 원본 MOV에서 직접 추출
 
     프레임 번호는 frame_000001.jpg 부터 순차 저장
@@ -672,6 +672,9 @@ def export_synced_frames(result, left_mov=None, right_mov=None, dst_dir=None):
     if overlap <= 0:
         print("ERROR: No overlapping frames to export.")
         return
+
+    if max_frames is not None:
+        overlap = min(overlap, max_frames)
 
     l_end = l_start + overlap - 1
     r_end = r_start + overlap - 1

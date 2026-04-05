@@ -335,8 +335,8 @@
     1280,
     720
   ],
-  "left_image": "frames_sync_pair1/left/frame_000001.jpg",
-  "right_image": "frames_sync_pair1/right/frame_000001.jpg",
+  "left_image": "frames_sync_pair2/left/frame_000001.jpg",
+  "right_image": "frames_sync_pair2/right/frame_000001.jpg",
   "method": "lightglue",
   "homography": [
     [

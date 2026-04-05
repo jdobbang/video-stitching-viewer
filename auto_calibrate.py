@@ -1,5 +1,5 @@
 """
-Auto Calibration — SuperPoint + LightGlue / SIFT 자동 대응점 매칭
+Auto Calibration -DISK + LightGlue 자동 대응점 매칭
 카메라 위치가 바뀔 때마다 수동 없이 calibration.json 생성
 """
 
@@ -56,7 +56,7 @@ def detect_and_match_lightglue(left, right):
 
     feats0 = clamp_feats(feats0, h, w)
     feats1 = clamp_feats(feats1, h, w)
-    print(f"  범위 필터 후 — 좌측: {feats0.keypoints.shape[0]}, 우측: {feats1.keypoints.shape[0]}")
+    print(f"  범위 필터 후 -좌측: {feats0.keypoints.shape[0]}, 우측: {feats1.keypoints.shape[0]}")
 
     # LightGlue 매칭
     lg = LightGlue("disk").to(device).eval()
@@ -146,7 +146,7 @@ def detect_and_match_lightglue(left, right):
     kp1 = kp1[sorted_idx[:max_keep]]
     errors = errors[sorted_idx[:max_keep]]
 
-    print(f"  재투영 오차 — 평균: {errors.mean():.2f}px, 최대: {errors.max():.2f}px")
+    print(f"  재투영 오차 -평균: {errors.mean():.2f}px, 최대: {errors.max():.2f}px")
 
     # 공간 분포 최적화 (16x16 그리드 → 더 많은 셀에서 포인트 유지)
     kp0, kp1 = spatial_subsample(kp0, kp1, left.shape, grid_size=16)
@@ -162,76 +162,6 @@ def detect_and_match_lightglue(left, right):
             "left": [round(float(kp0[i][0]), 1), round(float(kp0[i][1]), 1)],
             "right": [round(float(kp1[i][0]), 1), round(float(kp1[i][1]), 1)],
             "source": "disk_lightglue_auto"
-        })
-
-    return point_pairs, H
-
-
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# SIFT 매칭 (fallback)
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-def detect_and_match_sift(left, right, max_features=5000, ratio_thresh=0.65):
-    """SIFT 특징점 검출 및 매칭 (fallback)"""
-    sift = cv2.SIFT_create(nfeatures=max_features)
-
-    kp1, des1 = sift.detectAndCompute(left, None)
-    kp2, des2 = sift.detectAndCompute(right, None)
-
-    print(f"  좌측 특징점: {len(kp1)}, 우측 특징점: {len(kp2)}")
-
-    if des1 is None or des2 is None or len(kp1) < 10 or len(kp2) < 10:
-        print("ERROR: 특징점이 부족합니다.")
-        return [], None
-
-    index_params = dict(algorithm=1, trees=5)
-    search_params = dict(checks=100)
-    flann = cv2.FlannBasedMatcher(index_params, search_params)
-    matches = flann.knnMatch(des1, des2, k=2)
-
-    good = []
-    for m, n in matches:
-        if m.distance < ratio_thresh * n.distance:
-            good.append(m)
-
-    print(f"  ratio test 통과: {len(good)}")
-
-    if len(good) < 4:
-        print("ERROR: 매칭이 부족합니다.")
-        return [], None
-
-    pts_left = np.float32([kp1[m.queryIdx].pt for m in good])
-    pts_right = np.float32([kp2[m.trainIdx].pt for m in good])
-
-    H, mask = cv2.findHomography(pts_right, pts_left, cv2.RANSAC, 5.0)
-    inliers = mask.ravel().astype(bool)
-    pts_left = pts_left[inliers]
-    pts_right = pts_right[inliers]
-
-    print(f"  RANSAC 인라이어: {inliers.sum()}/{len(inliers)}")
-
-    pts_right_h = np.hstack([pts_right, np.ones((len(pts_right), 1))])
-    projected = (H @ pts_right_h.T).T
-    projected = projected[:, :2] / projected[:, 2:3]
-    errors = np.linalg.norm(projected - pts_left, axis=1)
-
-    sorted_idx = np.argsort(errors)
-    max_keep = min(50, len(sorted_idx))
-    keep_idx = sorted_idx[:max_keep]
-    pts_left = pts_left[keep_idx]
-    pts_right = pts_right[keep_idx]
-    errors = errors[keep_idx]
-
-    print(f"  재투영 오차 — 평균: {errors.mean():.2f}px, 최대: {errors.max():.2f}px")
-
-    pts_left, pts_right = spatial_subsample(pts_left, pts_right, left.shape, grid_size=8)
-    print(f"  공간 분포 최적화 후: {len(pts_left)}쌍")
-
-    point_pairs = []
-    for i in range(len(pts_left)):
-        point_pairs.append({
-            "left": [round(float(pts_left[i][0]), 1), round(float(pts_left[i][1]), 1)],
-            "right": [round(float(pts_right[i][0]), 1), round(float(pts_right[i][1]), 1)],
-            "source": "sift_auto"
         })
 
     return point_pairs, H
@@ -288,20 +218,18 @@ def visualize(left, right, point_pairs, output_path):
 # 메인
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 def main():
-    parser = argparse.ArgumentParser(description="자동 캘리브레이션 (SuperPoint+LightGlue / SIFT)")
+    parser = argparse.ArgumentParser(description="자동 캘리브레이션 (DISK + LightGlue)")
     parser.add_argument("--left", default=os.path.join(BASE_DIR, "left_sync/frame_00001.jpg"))
     parser.add_argument("--right", default=os.path.join(BASE_DIR, "right_sync/frame_00001.jpg"))
     parser.add_argument("--output", default=os.path.join(BASE_DIR, "calibration_auto.json"))
-    parser.add_argument("--method", default="lightglue", choices=["lightglue", "sift"],
-                        help="매칭 방식 (기본: lightglue)")
-    parser.add_argument("--max-features", type=int, default=5000, help="SIFT max features")
-    parser.add_argument("--ratio", type=float, default=0.65, help="SIFT ratio test threshold")
-    parser.add_argument("--visualize", action="store_true")
+    parser.add_argument("--left-focal", type=float, default=None,
+                        help="좌측 카메라 35mm 환산 focal length (mm)")
+    parser.add_argument("--right-focal", type=float, default=None,
+                        help="우측 카메라 35mm 환산 focal length (mm)")
     args = parser.parse_args()
 
-    method_label = "DISK + LightGlue" if args.method == "lightglue" else "SIFT"
     print("=" * 60)
-    print(f"  Auto Calibration ({method_label})")
+    print("  Auto Calibration (DISK + LightGlue)")
     print("=" * 60)
 
     left = cv2.imread(args.left)
@@ -314,13 +242,9 @@ def main():
         sys.exit(1)
 
     print(f"\n이미지: {left.shape[1]}x{left.shape[0]}")
-    print(f"\n매칭 중 ({method_label})...")
+    print(f"\n매칭 중 (DISK + LightGlue)...")
 
-    if args.method == "lightglue":
-        point_pairs, H = detect_and_match_lightglue(left, right)
-    else:
-        point_pairs, H = detect_and_match_sift(
-            left, right, max_features=args.max_features, ratio_thresh=args.ratio)
+    point_pairs, H = detect_and_match_lightglue(left, right)
 
     if not point_pairs:
         print("\nERROR: 매칭 실패")
@@ -331,8 +255,13 @@ def main():
         "image_size": [left.shape[1], left.shape[0]],
         "left_image": os.path.relpath(args.left, BASE_DIR),
         "right_image": os.path.relpath(args.right, BASE_DIR),
-        "method": args.method,
+        "method": "lightglue",
     }
+
+    if args.left_focal is not None:
+        calib["left_focal_mm"] = args.left_focal
+    if args.right_focal is not None:
+        calib["right_focal_mm"] = args.right_focal
 
     if H is not None:
         calib["homography"] = H.tolist()
@@ -342,12 +271,12 @@ def main():
 
     print(f"\n저장: {args.output} ({len(point_pairs)}쌍)")
 
-    if args.visualize:
-        vis_path = args.output.replace(".json", "_auto_vis.jpg")
-        visualize(left, right, point_pairs, vis_path)
+    # 매칭된 특징점 시각화 저장
+    vis_path = args.output.replace(".json", "_matches_vis.jpg")
+    visualize(left, right, point_pairs, vis_path)
 
     print("\n" + "=" * 60)
-    print(f"  완료! {len(point_pairs)}쌍 자동 매칭 ({method_label})")
+    print(f"  완료! {len(point_pairs)}쌍 자동 매칭 (DISK + LightGlue)")
     print("=" * 60)
 
 

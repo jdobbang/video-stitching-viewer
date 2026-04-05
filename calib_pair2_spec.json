@@ -335,8 +335,8 @@
     1280,
     720
   ],
-  "left_image": "frames_sync_pair1/left/frame_000001.jpg",
-  "right_image": "frames_sync_pair1/right/frame_000001.jpg",
+  "left_image": "frames_sync_pair2/left/frame_000001.jpg",
+  "right_image": "frames_sync_pair2/right/frame_000001.jpg",
   "method": "lightglue",
   "homography": [
     [
@@ -354,5 +354,7 @@
       -1.2258237488983523e-05,
       1.0
     ]
-  ]
+  ],
+  "left_focal_mm": 13,
+  "right_focal_mm": 13
 }

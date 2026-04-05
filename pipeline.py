@@ -41,7 +41,7 @@ def step_sync(args):
 
     from audio_sync import compute_sync_offset, export_synced_frames, save_sync_result
 
-    sync_dir = os.path.join(BASE_DIR, "sync_verify")
+    sync_dir = os.path.join(args.frames_dir, "sync_verify")
     result = compute_sync_offset(
         args.left, args.right,
         fps=args.fps,
@@ -51,7 +51,8 @@ def step_sync(args):
     save_sync_result(result, os.path.join(sync_dir, "sync_offset.txt"))
 
     dst = args.frames_dir
-    export_synced_frames(result, left_mov=args.left, right_mov=args.right, dst_dir=dst)
+    export_synced_frames(result, left_mov=args.left, right_mov=args.right,
+                         dst_dir=dst, max_frames=args.max_frames)
 
     # 결과 요약
     left_count = len([f for f in os.listdir(os.path.join(dst, "left")) if f.endswith(".jpg")])
@@ -65,7 +66,7 @@ def step_sync(args):
 
 def step_calibrate(args):
     """[2/4] Auto Calibration"""
-    print(f"\n[2/3] Auto Calibration ({args.calib_method})")
+    print(f"\n[2/3] Auto Calibration (DISK + LightGlue)")
     t0 = time.time()
 
     left_frame = os.path.join(args.frames_dir, "left", "frame_000001.jpg")
@@ -80,8 +81,11 @@ def step_calibrate(args):
         "--left", left_frame,
         "--right", right_frame,
         "--output", args.calib,
-        "--method", args.calib_method,
     ]
+    if args.left_focal is not None:
+        cmd += ["--left-focal", str(args.left_focal)]
+    if args.right_focal is not None:
+        cmd += ["--right-focal", str(args.right_focal)]
 
     run_step("Calibration", cmd)
     print(f"      Output: {args.calib}")
@@ -123,8 +127,6 @@ def main():
                         help="Output directory (default: output/)")
     parser.add_argument("--method", default="cylindrical", choices=["cylindrical", "planar"],
                         help="Stitching method (default: cylindrical)")
-    parser.add_argument("--calib-method", default="lightglue", choices=["lightglue", "sift"],
-                        help="Calibration method (default: lightglue)")
     parser.add_argument("--fps", type=float, default=None,
                         help="FPS override (auto-detect if omitted)")
     parser.add_argument("--workers", type=int, default=None,
@@ -134,6 +136,13 @@ def main():
     parser.add_argument("--calib", default=os.path.join(BASE_DIR, "calibration_auto.json"),
                         help="Calibration JSON path")
 
+    parser.add_argument("--left-focal", type=float, default=None,
+                        help="좌측 카메라 35mm 환산 focal length (mm)")
+    parser.add_argument("--right-focal", type=float, default=None,
+                        help="우측 카메라 35mm 환산 focal length (mm)")
+    parser.add_argument("--max-frames", type=int, default=None,
+                        help="Max frames to extract (default: all)")
+
     parser.add_argument("--skip-sync", action="store_true",
                         help="Skip audio sync (use existing frames)")
     parser.add_argument("--skip-calib", action="store_true",
@@ -142,6 +151,13 @@ def main():
                         help="Skip stitching")
 
     args = parser.parse_args()
+
+    # focal 스펙이 주어지면 경로에 _spec 접미사 자동 추가
+    if args.left_focal is not None:
+        if not args.output.endswith("_spec"):
+            args.output = args.output + "_spec"
+        if not args.calib.endswith("_spec.json"):
+            args.calib = args.calib.replace(".json", "_spec.json")
 
     print("=" * 60)
     print("  E2E Stitching Pipeline")
