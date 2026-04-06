@@ -164,21 +164,50 @@
         
         /* 캘리브레이션 추가 스타일 */
         #calibration-panel {
-            position: absolute;
+            position: fixed;
             top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0,0,0,0.9);
-            padding: 16px;
+            left: 20px;
+            background: rgba(10,10,20,0.95);
             border-radius: 12px;
             color: white;
             display: none;
             flex-direction: column;
             gap: 10px;
             min-width: 380px;
+            max-width: 420px;
+            max-height: 90vh;
+            overflow-y: auto;
+            overflow-x: hidden;
             z-index: 100;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+            border: 1px solid rgba(255,255,255,0.12);
+            user-select: none;
         }
         #calibration-panel.active { display: flex; }
+
+        #calib-drag-handle {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 16px 6px;
+            cursor: grab;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            margin-bottom: 2px;
+            flex-shrink: 0;
+        }
+        #calib-drag-handle:active { cursor: grabbing; }
+        #calib-drag-handle .drag-hint {
+            font-size: 10px;
+            color: rgba(255,255,255,0.3);
+        }
+
+        #calib-panel-body {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 0 16px 16px;
+            overflow-y: auto;
+        }
         
         .calib-section {
             background: rgba(255,255,255,0.05);
@@ -284,13 +313,19 @@
 </head>
 <body>
     <div id="container"></div>
-    <svg id="calib-svg-overlay"></svg>
+    <svg id="calib-svg-overlay">
+        <g id="calib-points-layer"></g>
+    </svg>
     <div class="calib-cursor" id="calib-cursor"></div>
     <div id="loading">비디오 로딩중...</div>
     <div id="toast"></div>
     
     <div id="calibration-panel">
-        <div style="font-size: 14px; font-weight: bold;">📐 필드 캘리브레이션</div>
+        <div id="calib-drag-handle">
+            <span style="font-size:14px; font-weight:bold;">📐 필드 캘리브레이션</span>
+            <span class="drag-hint">⠿ 드래그</span>
+        </div>
+        <div id="calib-panel-body">
         <div style="font-size: 11px; color: #888;">아래 미니맵에서 포인트 클릭 → 화면에서 해당 위치 클릭</div>
         
         <div class="calib-section">
@@ -345,10 +380,34 @@
             </div>
         </div>
         
-        <div style="background: #1a472a; border-radius: 8px; padding: 12px;">
+        <div class="calib-section" style="margin-top: 8px;">
+            <div class="calib-section-title">🌿 잔디 줄무늬 키포인트</div>
+            <div style="display: flex; gap: 6px; align-items: flex-end; margin-bottom: 6px;">
+                <label style="font-size: 11px; flex:1;">
+                    줄 수
+                    <input type="number" id="stripe-count" value="20" min="2" max="60" step="1"
+                        style="width:100%; padding:3px; margin-top:2px; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.3); border-radius:4px; color:white; font-size:11px;">
+                </label>
+                <label style="font-size: 11px; flex:1;">
+                    끝 칸
+                    <select id="stripe-end-type" style="width:100%; padding:3px; margin-top:2px; background:#222; border:1px solid rgba(255,255,255,0.3); border-radius:4px; color:white; font-size:11px;">
+                        <option value="full">전체 칸</option>
+                        <option value="half">반 칸</option>
+                    </select>
+                </label>
+                <button class="btn" id="apply-stripe-btn" style="width:auto; padding:4px 10px; font-size:11px;">적용</button>
+            </div>
+            <div style="font-size:10px; color:#aaa; margin-bottom:6px;" id="stripe-info"></div>
+        </div>
+
+        <div style="background: #1a472a; border-radius: 8px; padding: 12px; position: relative;">
+            <!-- 줄무늬 버튼 오버레이 (JS로 동적 생성) -->
+            <div id="stripe-quadrant-btns" style="display:none; position:absolute; inset:0; pointer-events:none; z-index:10;"></div>
             <svg id="calib-minimap" viewBox="0 0 220 145" style="width: 100%; height: 130px; cursor: pointer;">
                 <!-- 등록된 포인트 연결선 (동적 업데이트) -->
                 <g id="minimap-lines"></g>
+                <!-- 잔디 줄무늬 동적 포인트 -->
+                <g id="minimap-stripe-points"></g>
                 
                 <text x="12" y="72" text-anchor="middle" fill="#fff" font-size="8" opacity="0.7">좌측</text>
                 <text x="12" y="82" text-anchor="middle" fill="#fff" font-size="8" opacity="0.7">골대</text>
@@ -408,6 +467,7 @@
             <span><span style="color: #facc15;">●</span> 골대</span>
             <span><span style="color: #a855f7;">●</span> 페널티박스</span>
             <span><span style="color: #f97316;">●</span> 사이드라인</span>
+            <span><span style="color: #fb923c;">●</span> 잔디줄무늬</span>
         </div>
         
         <div id="selected-point-info" style="text-align: center; padding: 8px; background: rgba(255,255,255,0.05); border-radius: 6px; min-height: 20px;">
@@ -429,6 +489,7 @@
             <button class="btn" id="save-calib" style="flex:1;">💾 저장</button>
             <button class="btn" id="complete-calib" style="flex:1; background: rgba(74,158,255,0.3); border-color: #4a9eff;">✓ 완료</button>
         </div>
+        </div><!-- /calib-panel-body -->
     </div>
     
     <div class="panel" id="file-panel">
@@ -465,19 +526,18 @@
         <button class="btn" id="tactics-btn" style="display: none;">🎯 전술 모드 (T)</button>
         <div style="font-size: 11px; color: rgba(255,255,255,0.6); margin: 8px 0 4px;">투영 모드</div>
         <button class="btn active" data-mode="cylinder">🔵 Cylinder</button>
-        <button class="btn" data-mode="plane">⬜ Flat Plane</button>
         <button class="btn" data-mode="sphere">🌐 Sphere</button>
     </div>
     
     <!-- 전술 미니맵 패널 -->
-    <div class="panel" id="tactics-panel" style="display: none; top: 200px; right: 20px; width: 280px;">
+    <div class="panel" id="tactics-panel" style="display: none; top: 200px; right: 20px; width: 420px;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
             <span style="font-size: 14px; font-weight: bold;">🎯 전술 미니맵</span>
             <button class="btn" id="tactics-close-btn" style="width: auto; padding: 4px 8px; font-size: 12px;">✕</button>
         </div>
         
         <div style="background: #1a472a; border-radius: 8px; padding: 8px; position: relative;">
-            <svg id="tactics-minimap" viewBox="0 0 220 145" style="width: 100%; height: 160px;">
+            <svg id="tactics-minimap" viewBox="0 0 220 145" style="width: 100%; height: 240px;">
                 <!-- 필드 배경 -->
                 <rect x="20" y="5" width="180" height="135" fill="#2d5a3d" stroke="#fff" stroke-width="1.5"/>
                 <!-- 센터라인 -->
@@ -513,7 +573,7 @@
         </div>
         
         <div style="font-size: 10px; color: #888; margin-top: 8px; text-align: center;">
-            화면 클릭 → 미니맵에 표시 | 포인트: <span id="tactics-count">0</span>개
+            화면 클릭 → 미니맵에 표시 | 미니맵 선수 드래그 → 위치 조정 | 포인트: <span id="tactics-count">0</span>개
         </div>
     </div>
     
@@ -530,12 +590,12 @@
         
         <div class="control-group">
             <label>속도</label>
-            <select id="speed" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 4px 8px; border-radius: 4px;">
-                <option value="0.25">0.25x</option>
-                <option value="0.5">0.5x</option>
-                <option value="1" selected>1x</option>
-                <option value="1.5">1.5x</option>
-                <option value="2">2x</option>
+            <select id="speed" style="background: #222; border: 1px solid rgba(255,255,255,0.2); color: white; padding: 4px 8px; border-radius: 4px;">
+                <option value="0.25" style="background:#222; color:white;">0.25x</option>
+                <option value="0.5" style="background:#222; color:white;">0.5x</option>
+                <option value="1" selected style="background:#222; color:white;">1x</option>
+                <option value="1.5" style="background:#222; color:white;">1.5x</option>
+                <option value="2" style="background:#222; color:white;">2x</option>
             </select>
         </div>
     </div>
@@ -544,7 +604,7 @@
         <div class="control-group">
             <label>Camera FOV</label>
             <div class="control-row">
-                <input type="range" id="fov" min="20" max="90" value="50">
+                <input type="range" id="fov" min="1" max="90" value="50">
                 <span class="value" id="fov-val">50°</span>
             </div>
         </div>
@@ -584,6 +644,9 @@
         let penaltyWidth = 40.32; // 페널티박스 너비 (m)
         let goalboxDepth = 5.5; // 골박스 깊이 (m)
         let goalboxWidth = 18.32; // 골박스 너비 (m)
+        let stripeInterval = 20; // 줄 수 (개수)
+        let stripeEndType = 'full'; // 'full' | 'half'
+        let activeQuadrant = null; // 'TL'|'TR'|'BL'|'BR'|null
         const calibSvgOverlay = document.getElementById('calib-svg-overlay');
         
         // 마킹 관련 변수
@@ -597,6 +660,10 @@
         let tacticsPoints = []; // [{ id, fieldX, fieldY, screenX, screenY, color }]
         let tacticsIdCounter = 0;
         let currentTacticsColor = '#ef4444'; // 홈팀 색상
+        
+        // 전술 미니맵 드래그 관련
+        let tacticsDragState = null; // { pointId, pointIndex }
+
         
         // 각 포인트의 필드 좌표 (0,0 = 좌상 코너 기준, 가로 방향)
         // 가로(x) = 터치라인 방향 (0~fieldWidth), 세로(y) = 골라인 방향 (0~fieldHeight)
@@ -629,7 +696,15 @@
                 T14: {x: w/4, y: 0}, T34: {x: w*3/4, y: 0},
                 B14: {x: w/4, y: h}, B34: {x: w*3/4, y: h},
             };
-            return coords[id] || null;
+            if (coords[id]) return coords[id];
+            
+            // 잔디 줄무늬 동적 포인트: TS{x} = 상단, BS{x} = 하단
+            const tsMatch = id.match(/^TS([\d.]+)$/);
+            if (tsMatch) return { x: parseFloat(tsMatch[1]), y: 0 };
+            const bsMatch = id.match(/^BS([\d.]+)$/);
+            if (bsMatch) return { x: parseFloat(bsMatch[1]), y: h };
+            
+            return null;
         }
         
         // 포인트 ID → 한글 이름
@@ -859,8 +934,6 @@
 
             // 키보드 입력 추적 (e.code 사용 → 한영 상관없이 동작)
             const codeMap = {
-                'ArrowLeft': 'arrowleft', 'ArrowRight': 'arrowright',
-                'ArrowUp': 'arrowup', 'ArrowDown': 'arrowdown',
                 'KeyA': 'arrowleft', 'KeyW': 'arrowup',
                 'KeyD': 'arrowright', 'KeyS': 'arrowdown',
                 'KeyQ': 'q', 'KeyE': 'e',
@@ -887,6 +960,7 @@
                         showGrid = !showGrid;
                         document.getElementById('grid-toggle-btn').classList.toggle('active', showGrid);
                         updateCalibOverlay();
+                        redrawFieldGrid();
                         showToast(showGrid ? '⚽ 코트 표시됨' : '⚽ 코트 숨김');
                     }
                     return;
@@ -909,6 +983,17 @@
                     }
                     return;
                 }
+                // 화살표 좌/우: 5초 앞뒤 이동
+                if (e.code === 'ArrowLeft' && !isCalibrationMode) {
+                    e.preventDefault();
+                    video.currentTime = Math.max(0, video.currentTime - 5);
+                    return;
+                }
+                if (e.code === 'ArrowRight' && !isCalibrationMode) {
+                    e.preventDefault();
+                    video.currentTime = Math.min(video.duration, video.currentTime + 5);
+                    return;
+                }
                 
                 const mapped = codeMap[e.code];
                 if (mapped) {
@@ -926,6 +1011,27 @@
             document.getElementById('reset-calib').addEventListener('click', resetCalibration);
             document.getElementById('undo-calib').addEventListener('click', undoCalibration);
             document.getElementById('save-calib').addEventListener('click', saveCalibration);
+            
+            // 잔디 줄무늬 적용
+            document.getElementById('apply-stripe-btn').addEventListener('click', () => {
+                stripeInterval = parseInt(document.getElementById('stripe-count').value) || 20;
+                stripeEndType = document.getElementById('stripe-end-type').value;
+                activeQuadrant = null;
+                generateStripePoints();
+                updateCalibCount();
+                showToast(`🌿 줄무늬 갱신 (${stripeInterval}줄, 끝 ${stripeEndType === 'full' ? '전체' : '반'}칸)`);
+            });
+
+            // 4분면 토글 버튼
+            document.addEventListener('click', (e) => {
+                const btn = e.target.closest('.stripe-quad-btn');
+                if (!btn) return;
+                const quad = btn.dataset.quad;
+                activeQuadrant = activeQuadrant === quad ? null : quad;
+                generateStripePoints();
+            });
+
+            generateStripePoints(); // 초기 생성
             document.getElementById('complete-calib').addEventListener('click', () => {
                 // 필드 크기 저장
                 fieldWidth = parseFloat(document.getElementById('field-width').value) || 105;
@@ -953,6 +1059,7 @@
                 document.getElementById('grid-toggle-btn').classList.add('active');
                 document.getElementById('tactics-btn').style.display = 'block';
                 toggleCalibrationMode();
+                redrawFieldGrid();
                 
                 if (extraCount > 0) {
                     showToast(`✓ 코트 오버레이 생성! 코너 4점 + 보정 ${extraCount}점 반영됨`);
@@ -961,11 +1068,31 @@
                 }
             });
             
-            // 격자 토글 버튼
+            // 재생바 클릭/드래그로 구간 이동
+            const progressBar = document.getElementById('progress');
+            const seekTo = (e) => {
+                const rect = progressBar.getBoundingClientRect();
+                const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                video.currentTime = ratio * video.duration;
+            };
+            progressBar.addEventListener('click', seekTo);
+            progressBar.addEventListener('mousedown', (e) => {
+                seekTo(e);
+                const onMove = (e) => seekTo(e);
+                const onUp = () => {
+                    window.removeEventListener('mousemove', onMove);
+                    window.removeEventListener('mouseup', onUp);
+                };
+                window.addEventListener('mousemove', onMove);
+                window.addEventListener('mouseup', onUp);
+            });
+
+            // 격자 토글 버튼 (코트 표시 + 키포인트 동시 토글)
             document.getElementById('grid-toggle-btn').addEventListener('click', () => {
                 showGrid = !showGrid;
                 document.getElementById('grid-toggle-btn').classList.toggle('active', showGrid);
                 updateCalibOverlay();
+                redrawFieldGrid();
                 showToast(showGrid ? '⚽ 코트 표시됨' : '⚽ 코트 숨김');
             });
             
@@ -1084,14 +1211,6 @@
                 );
                 geometry.scale(-1, 1, 1);
                 
-            } else if (mode === 'plane') {
-                const planeWidth = radius * 2 * Math.tan(TOTAL_FOV_RAD / 2) * curve;
-                const planeHeight = planeWidth / (IMG_WIDTH / IMG_HEIGHT);
-                
-                geometry = new THREE.PlaneGeometry(planeWidth, planeHeight, 1, 1);
-                geometry.rotateY(Math.PI / 2);
-                geometry.translate(radius, 0, 0);
-                
             } else if (mode === 'sphere') {
                 const phiLength = TOTAL_FOV_RAD * curve;
                 const thetaLength = phiLength / (IMG_WIDTH / IMG_HEIGHT);
@@ -1115,7 +1234,6 @@
             if (mode === 'cylinder' || mode === 'sphere') {
                 mesh.rotation.y = Math.PI / 2;
             }
-            
             // 비디오 회전 적용
             mesh.rotation.z = THREE.MathUtils.degToRad(videoRotation);
             
@@ -1133,15 +1251,16 @@
                 return;
             }
             
-            // 전술 모드에서 포인트 추가
+            // 항상 pointerDown 좌표 저장 (전술 모드 클릭 판정에도 필요)
+            onPointerDownMouseX = event.clientX;
+            onPointerDownMouseY = event.clientY;
+            
+            // 전술 모드: 드래그 없이 pointerUp에서 클릭 처리
             if (isTacticsMode) {
-                addTacticsPoint(event.clientX, event.clientY);
                 return;
             }
             
             isUserInteracting = true;
-            onPointerDownMouseX = event.clientX;
-            onPointerDownMouseY = event.clientY;
             prevPointerX = event.clientX;
             prevPointerY = event.clientY;
             onPointerDownLon = lon;
@@ -1183,7 +1302,12 @@
             const dx = event.clientX - onPointerDownMouseX;
             const dy = event.clientY - onPointerDownMouseY;
             if (Math.sqrt(dx * dx + dy * dy) < 5) {
-                // 클릭 지점으로 부드럽게 이동
+                // 전술 모드: 포인트 추가 (시점 이동 없음)
+                if (isTacticsMode) {
+                    addTacticsPoint(event.clientX, event.clientY);
+                    return;
+                }
+                // 일반 모드: 클릭 지점으로 부드럽게 이동
                 velocity.lon = 0;
                 velocity.lat = 0;
                 const targetLonLat = screenToLonLat(event.clientX, event.clientY);
@@ -1191,7 +1315,6 @@
                     smoothTarget = targetLonLat;
                 }
             }
-            // 드래그인 경우 velocity는 이미 설정되어 있으므로 감쇠로 자연스럽게 멈춤
         }
 
         function screenToLonLat(screenX, screenY) {
@@ -1293,7 +1416,7 @@
 
             // FOV
             if (velocity.fov !== 0) {
-                camera.fov = clamp(camera.fov + velocity.fov, 20, 90);
+                camera.fov = clamp(camera.fov + velocity.fov, 0.5, 90);
                 camera.updateProjectionMatrix();
                 document.getElementById('fov').value = Math.round(camera.fov);
                 document.getElementById('fov-val').textContent = Math.round(camera.fov) + '\u00B0';
@@ -1318,15 +1441,47 @@
             const x = 100 * Math.sin(phi) * Math.cos(theta);
             const y = 100 * Math.cos(phi);
             const z = 100 * Math.sin(phi) * Math.sin(theta);
-
             camera.lookAt(x, y, z);
             renderer.render(scene, camera);
             
-            // 캘리브레이션 포인트 업데이트 (3D→2D 재투영)
+            // 키포인트(점)만 매 프레임 재투영 (시점 따라 이동)
             updateCalibOverlay();
         }
         
-        // ============ 캘리브레이션 함수들 ============
+        // ============ 캘리브레이션 패널 드래그 ============
+        (function() {
+            const panel  = document.getElementById('calibration-panel');
+            const handle = document.getElementById('calib-drag-handle');
+            if (!panel || !handle) return;
+
+            let dragging = false, ox = 0, oy = 0;
+
+            handle.addEventListener('mousedown', (e) => {
+                if (e.button !== 0) return;
+                dragging = true;
+                // transform 제거 후 현재 위치 기준으로 고정
+                const rect = panel.getBoundingClientRect();
+                panel.style.left = rect.left + 'px';
+                panel.style.top  = rect.top  + 'px';
+                panel.style.transform = 'none';
+                ox = e.clientX - rect.left;
+                oy = e.clientY - rect.top;
+                e.preventDefault();
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (!dragging) return;
+                let nx = e.clientX - ox;
+                let ny = e.clientY - oy;
+                // 화면 밖으로 나가지 않게
+                nx = Math.max(0, Math.min(window.innerWidth  - panel.offsetWidth,  nx));
+                ny = Math.max(0, Math.min(window.innerHeight - panel.offsetHeight, ny));
+                panel.style.left = nx + 'px';
+                panel.style.top  = ny + 'px';
+            });
+
+            window.addEventListener('mouseup', () => { dragging = false; });
+        })();
         
         function showToast(msg) {
             const t = document.getElementById('toast');
@@ -1335,6 +1490,45 @@
             setTimeout(() => t.classList.remove('active'), 2000);
         }
         
+        // UV 좌표 → 현재 메쉬 위의 로컬 3D 좌표 (지오메트리 변경에 무관)
+        function uvToLocalPoint(uv) {
+            if (!mesh) return null;
+            const geo = mesh.geometry;
+            const posAttr = geo.attributes.position;
+            const uvAttr = geo.attributes.uv;
+            const index = geo.index;
+            if (!uvAttr) return null;
+
+            const u = uv.u, v = uv.v;
+            const count = index ? index.count : posAttr.count;
+
+            for (let i = 0; i < count; i += 3) {
+                const i0 = index ? index.getX(i)   : i;
+                const i1 = index ? index.getX(i+1) : i+1;
+                const i2 = index ? index.getX(i+2) : i+2;
+
+                const u0 = uvAttr.getX(i0), v0 = uvAttr.getY(i0);
+                const u1 = uvAttr.getX(i1), v1 = uvAttr.getY(i1);
+                const u2 = uvAttr.getX(i2), v2 = uvAttr.getY(i2);
+
+                // 삼각형 내부 여부 (barycentric)
+                const d = (v1 - v2)*(u0 - u2) + (u2 - u1)*(v0 - v2);
+                if (Math.abs(d) < 1e-10) continue;
+                const a = ((v1 - v2)*(u - u2) + (u2 - u1)*(v - v2)) / d;
+                const b = ((v2 - v0)*(u - u2) + (u0 - u2)*(v - v2)) / d;
+                const c = 1 - a - b;
+                if (a < -0.01 || b < -0.01 || c < -0.01) continue;
+
+                // 3D 위치 보간
+                return new THREE.Vector3(
+                    a * posAttr.getX(i0) + b * posAttr.getX(i1) + c * posAttr.getX(i2),
+                    a * posAttr.getY(i0) + b * posAttr.getY(i1) + c * posAttr.getY(i2),
+                    a * posAttr.getZ(i0) + b * posAttr.getZ(i1) + c * posAttr.getZ(i2)
+                );
+            }
+            return null;
+        }
+
         function worldToScreen(w, allowOutside = false) {
             if (!camera || !renderer || !mesh) return null;
             
@@ -1344,6 +1538,22 @@
             
             const v = worldVec.project(camera);
             if (v.z > 1) return null; // 카메라 뒤
+            const x = (v.x * 0.5 + 0.5) * window.innerWidth;
+            const y = (-v.y * 0.5 + 0.5) * window.innerHeight;
+            if (!allowOutside) {
+                if (x < -50 || x > window.innerWidth + 50 || y < -50 || y > window.innerHeight + 50) return null;
+            }
+            return { x, y };
+        }
+
+        // UV 기반 화면 좌표 변환 (메쉬 지오메트리 변경에 강건)
+        function uvToScreen(uv, allowOutside = false) {
+            if (!camera || !mesh || !uv) return null;
+            const localPos = uvToLocalPoint(uv);
+            if (!localPos) return null;
+            const worldPos = mesh.localToWorld(localPos);
+            const v = worldPos.project(camera);
+            if (v.z > 1) return null;
             const x = (v.x * 0.5 + 0.5) * window.innerWidth;
             const y = (-v.y * 0.5 + 0.5) * window.innerHeight;
             if (!allowOutside) {
@@ -1368,23 +1578,27 @@
             return null;
         }
         
+        function redrawFieldGrid() { /* 선 시각화 제거됨 */ }
+        
+        // 매 프레임: 점(키포인트)만 재투영하여 갱신
         function updateCalibOverlay() {
-            if (!calibSvgOverlay) return;
-            calibSvgOverlay.innerHTML = '';
+            const pointsLayer = document.getElementById('calib-points-layer');
+            if (!pointsLayer) return;
+            pointsLayer.innerHTML = '';
             
-            // 격자 그리기 (코너 4개가 있을 때만)
-            if (showGrid && calibrationPoints.TL && calibrationPoints.TR && calibrationPoints.BL && calibrationPoints.BR) {
-                drawFieldGrid();
-            }
+            // showGrid가 꺼져있으면 키포인트도 숨김
+            if (!showGrid) return;
             
             // 캘리브레이션 포인트 표시
-            const colors = { corner: '#ef4444', center: '#3b82f6', centerline: '#22c55e', goal: '#facc15', penalty: '#a855f7', sideline: '#f97316' };
+            const colors = { corner: '#ef4444', center: '#3b82f6', centerline: '#22c55e', goal: '#facc15', penalty: '#a855f7', sideline: '#f97316', stripe: '#fb923c' };
             
             for (const [id, data] of Object.entries(calibrationPoints)) {
-                const pos = worldToScreen(data.world3D);
+                // UV 기반으로 현재 메쉬 위 위치를 구함
+                const pos = (data.uv ? uvToScreen(data.uv) : null) || worldToScreen(data.world3D);
                 if (!pos) continue;
                 
-                const type = id.startsWith('G') ? 'goal' : id.startsWith('P') ? 'penalty' : 
+                const type = /^(TS|BS)[\d.]+$/.test(id) ? 'stripe' :
+                             id.startsWith('G') ? 'goal' : id.startsWith('P') ? 'penalty' : 
                              id.startsWith('CL') && id.length === 3 ? 'centerline' :
                              id.startsWith('C') ? 'center' : 
                              ['T14', 'T34', 'B14', 'B34'].includes(id) ? 'sideline' :
@@ -1418,7 +1632,7 @@
                 text.textContent = id;
                 g.appendChild(text);
                 
-                calibSvgOverlay.appendChild(g);
+                pointsLayer.appendChild(g);
             }
         }
         
@@ -1885,7 +2099,8 @@
         }
         
         // 격자 그리기 → 축구장 코트 라인 오버레이
-        function drawFieldGrid() {
+        function drawFieldGrid(target) {
+            if (!target) target = document.getElementById('calib-grid-layer');
             const w = fieldWidth, h = fieldHeight;
             const strokeWidth = 3;
             const color = 'rgba(255,255,255,0.9)';
@@ -1909,7 +2124,7 @@
                     path.setAttribute('stroke-width', sw);
                     path.setAttribute('fill', 'none');
                     path.setAttribute('stroke-linecap', 'round');
-                    calibSvgOverlay.appendChild(path);
+                    target.appendChild(path);
                 }
             }
             
@@ -1931,7 +2146,7 @@
                     path.setAttribute('stroke', c);
                     path.setAttribute('stroke-width', sw);
                     path.setAttribute('fill', 'none');
-                    calibSvgOverlay.appendChild(path);
+                    target.appendChild(path);
                 }
             }
             
@@ -2018,7 +2233,7 @@
                     path.setAttribute('stroke', color);
                     path.setAttribute('stroke-width', strokeWidth);
                     path.setAttribute('fill', 'none');
-                    calibSvgOverlay.appendChild(path);
+                    target.appendChild(path);
                 }
             }
             
@@ -2047,7 +2262,7 @@
                     path.setAttribute('stroke', color);
                     path.setAttribute('stroke-width', strokeWidth);
                     path.setAttribute('fill', 'none');
-                    calibSvgOverlay.appendChild(path);
+                    target.appendChild(path);
                 }
             }
             
@@ -2094,8 +2309,9 @@
             
             // 선택된 포인트 정보 표시
             const infoEl = document.getElementById('selected-point-info');
-            const name = pointNames[id] || id;
-            const color = id.startsWith('G') ? '#facc15' : 
+            const name = pointNames[id] || (/^TS([\d.]+)$/.test(id) ? `상단 ${id.slice(2)}m` : /^BS([\d.]+)$/.test(id) ? `하단 ${id.slice(2)}m` : id);
+            const color = /^(TS|BS)[\d.]+$/.test(id) ? '#fb923c' :
+                         id.startsWith('G') ? '#facc15' : 
                          id.startsWith('P') ? '#a855f7' : 
                          id.startsWith('CL') && id.length === 3 ? '#22c55e' :
                          id.startsWith('C') ? '#3b82f6' : 
@@ -2104,6 +2320,7 @@
             infoEl.innerHTML = `<span style="color: ${color}; font-weight: bold;">● ${name}</span> 을(를) 화면에서 클릭하세요`;
             
             showToast(`📍 "${name}" 선택됨 - 화면에서 클릭!`);
+            generateStripePoints(); // 선택 상태 강조 갱신
         }
         
         function updateCalibCount() {
@@ -2143,6 +2360,7 @@
             const name = pointNames[id] || id;
             invalidateTPSCache();
             updateCalibOverlay();
+            redrawFieldGrid();
             updateCalibCount();
             showToast(`🗑️ "${name}" 삭제됨`);
         }
@@ -2164,7 +2382,145 @@
             B14: {x: 68, y: 130}, B34: {x: 152, y: 130}
         };
         
-        // 미니맵 시각화 업데이트
+        // 필드 좌표 → 미니맵 SVG 좌표 (viewBox 기준: x=25~195, y=10~130)
+        function fieldToMinimap(fx, fy) {
+            return {
+                x: 25 + (fx / fieldWidth) * 170,
+                y: 10 + (fy / fieldHeight) * 120
+            };
+        }
+        
+        // 미니맵 좌표 얻기 (고정 + 동적 줄무늬)
+        function getMinimapCoord(id) {
+            if (minimapCoords[id]) return minimapCoords[id];
+            const fc = getFieldCoords(id);
+            if (fc) return fieldToMinimap(fc.x, fc.y);
+            return null;
+        }
+        
+        // 줄무늬 경계 x 좌표 배열 계산
+        function calcStripeBoundaries() {
+            const N = Math.max(2, Math.round(stripeInterval));
+            const boundaries = [];
+            if (stripeEndType === 'full') {
+                const w = fieldWidth / N;
+                for (let i = 1; i < N; i++) boundaries.push(Math.round(w * i * 1000) / 1000);
+            } else {
+                const w = fieldWidth / (N - 1);
+                for (let i = 1; i < N; i++) boundaries.push(Math.round(w * (i - 0.5) * 1000) / 1000);
+            }
+            return boundaries;
+        }
+
+        // 포인트 ID → 4분면 분류
+        function getStripeQuadrant(id) {
+            const isTop = id.startsWith('TS');
+            const x = parseFloat(id.slice(2));
+            const half = fieldWidth / 2;
+            if (isTop) return x <= half ? 'TL' : 'TR';
+            else       return x <= half ? 'BL' : 'BR';
+        }
+
+        // 잔디 줄무늬 포인트 생성 — 미니맵 위 필드 좌표 기준으로 버튼 직접 배치
+        function generateStripePoints() {
+            const svgGroup = document.getElementById('minimap-stripe-points');
+            const overlay  = document.getElementById('stripe-quadrant-btns');
+            const infoEl   = document.getElementById('stripe-info');
+            if (!svgGroup || !overlay) return;
+
+            svgGroup.innerHTML = '';
+            overlay.innerHTML  = '';
+
+            const boundaries = calcStripeBoundaries();
+            if (boundaries.length === 0) { overlay.style.display = 'none'; return; }
+
+            const N = Math.round(stripeInterval);
+            if (infoEl) {
+                const w = stripeEndType === 'full' ? fieldWidth / N : fieldWidth / (N - 1);
+                infoEl.textContent = `${N}줄 · 간격 ≈ ${w.toFixed(2)}m · 경계 ${boundaries.length}개`;
+            }
+            overlay.style.display = 'block';
+
+            // stale 포인트 정리
+            const validSet = new Set(boundaries.map(String));
+            for (const id of Object.keys(calibrationPoints)) {
+                if (/^(TS|BS)[\d.]+$/.test(id) && !validSet.has(id.slice(2))) {
+                    delete calibrationPoints[id];
+                    calibrationHistory = calibrationHistory.filter(h => h !== id);
+                }
+            }
+
+            // 4분면 배경 오버레이 (클릭으로 구간 필터)
+            const quads = [
+                { q:'TL', x1:0,  x2:50, y1:0,  y2:50, label:'좌상' },
+                { q:'TR', x1:50, x2:100,y1:0,  y2:50, label:'우상' },
+                { q:'BL', x1:0,  x2:50, y1:50, y2:100,label:'좌하' },
+                { q:'BR', x1:50, x2:100,y1:50, y2:100,label:'우하' },
+            ];
+            quads.forEach(({ q, x1, x2, y1, y2, label }) => {
+                const isAct = activeQuadrant === q;
+                const bg = document.createElement('div');
+                bg.className = 'stripe-quad-btn';
+                bg.dataset.quad = q;
+                bg.style.cssText = `position:absolute; left:${x1}%; top:${y1}%; width:${x2-x1}%; height:${y2-y1}%;
+                    background:${isAct ? 'rgba(251,146,60,0.15)' : 'transparent'};
+                    border:${isAct ? '1.5px solid rgba(251,146,60,0.5)' : '1px dashed rgba(251,146,60,0.12)'};
+                    pointer-events:auto; cursor:pointer; border-radius:2px; box-sizing:border-box;
+                    display:flex; align-items:${y1===0?'flex-start':'flex-end'}; justify-content:${x1===0?'flex-start':'flex-end'};
+                    padding:2px 3px; color:rgba(251,146,60,${isAct?'0.9':'0.35'}); font-size:8px;`;
+                bg.textContent = label;
+                overlay.appendChild(bg);
+            });
+
+            // 각 경계점 → SVG 눈금 + HTML 버튼 배치
+            const toLP = (xField) => ((25 + (xField / fieldWidth) * 170) / 220 * 100).toFixed(3) + '%';
+            const toTP = (isTop)  => (isTop ? (10/145*100) : (130/145*100)).toFixed(3) + '%';
+
+            boundaries.forEach((x, idx) => {
+                ['TS','BS'].forEach(prefix => {
+                    const id      = `${prefix}${x}`;
+                    const isTop   = prefix === 'TS';
+                    const quad    = getStripeQuadrant(id);
+                    const isSet   = !!calibrationPoints[id];
+                    const isCur   = currentCalibPointId === id;
+                    const isAct   = !activeQuadrant || activeQuadrant === quad;
+
+                    // SVG 눈금
+                    const mm = fieldToMinimap(x, isTop ? 0 : fieldHeight);
+                    const tick = document.createElementNS('http://www.w3.org/2000/svg','line');
+                    tick.setAttribute('x1', mm.x); tick.setAttribute('x2', mm.x);
+                    tick.setAttribute('y1', isTop ? mm.y - 1 : mm.y - 6);
+                    tick.setAttribute('y2', isTop ? mm.y + 6 : mm.y + 1);
+                    tick.setAttribute('stroke', isCur ? '#facc15' : isSet ? '#4ade80' : isAct ? '#fb923c' : 'rgba(251,146,60,0.15)');
+                    tick.setAttribute('stroke-width', isCur ? '3' : '2');
+                    svgGroup.appendChild(tick);
+
+                    // HTML 버튼 (활성 구간만)
+                    if (isAct) {
+                        const btn = document.createElement('div');
+                        btn.title = `${isTop?'상단':'하단'} ${x}m`;
+                        btn.style.cssText = `
+                            position:absolute; pointer-events:auto; cursor:pointer; z-index:20;
+                            left:${toLP(x)}; top:${toTP(isTop)};
+                            transform:translate(-50%, ${isTop ? '-110%' : '10%'});
+                            background:${isCur ? '#facc15' : isSet ? '#4ade80' : '#fb923c'};
+                            color:${isCur||isSet ? '#000':'#fff'};
+                            font-size:7px; font-weight:bold; line-height:1.3;
+                            padding:1px 3px; border-radius:3px;
+                            box-shadow:0 1px 3px rgba(0,0,0,0.5);
+                            white-space:nowrap;
+                        `;
+                        btn.textContent = idx + 1;
+                        btn.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            if (calibrationPoints[id]) deleteCalibPoint(id);
+                            else selectCalibPoint(id);
+                        });
+                        overlay.appendChild(btn);
+                    }
+                });
+            });
+        }
         function updateMinimapVisualization() {
             const linesGroup = document.getElementById('minimap-lines');
             if (!linesGroup) return;
@@ -2196,8 +2552,8 @@
             // 등록된 포인트 간 연결선 그리기
             for (const [p1, p2] of connections) {
                 if (calibrationPoints[p1] && calibrationPoints[p2]) {
-                    const c1 = minimapCoords[p1];
-                    const c2 = minimapCoords[p2];
+                    const c1 = getMinimapCoord(p1);
+                    const c2 = getMinimapCoord(p2);
                     if (c1 && c2) {
                         const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
                         line.setAttribute('x1', c1.x);
@@ -2227,7 +2583,7 @@
             
             // 등록된 포인트에 체크마크 표시
             for (const id of registered) {
-                const coord = minimapCoords[id];
+                const coord = getMinimapCoord(id);
                 if (!coord) continue;
                 
                 // 체크마크 원
@@ -2315,31 +2671,47 @@
             const toMinimapY = (fy) => 5 + (fy / fieldHeight) * 135;
             
             // 포인트 그리기
-            for (const p of tacticsPoints) {
+            for (let i = 0; i < tacticsPoints.length; i++) {
+                const p = tacticsPoints[i];
                 const mx = toMinimapX(p.fieldX);
                 const my = toMinimapY(p.fieldY);
+                
+                const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                g.setAttribute('data-point-index', i);
+                g.style.cursor = 'grab';
                 
                 // 외곽 원
                 const outerCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
                 outerCircle.setAttribute('cx', mx);
                 outerCircle.setAttribute('cy', my);
-                outerCircle.setAttribute('r', '8');
+                outerCircle.setAttribute('r', '9');
                 outerCircle.setAttribute('fill', p.color);
                 outerCircle.setAttribute('stroke', '#fff');
                 outerCircle.setAttribute('stroke-width', '2');
-                outerCircle.setAttribute('opacity', '0.9');
-                pointsGroup.appendChild(outerCircle);
+                outerCircle.setAttribute('opacity', '0.95');
+                g.appendChild(outerCircle);
                 
                 // 번호 표시
                 const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
                 text.setAttribute('x', mx);
-                text.setAttribute('y', my + 3);
+                text.setAttribute('y', my + 4);
                 text.setAttribute('text-anchor', 'middle');
                 text.setAttribute('fill', '#fff');
-                text.setAttribute('font-size', '8');
+                text.setAttribute('font-size', '9');
                 text.setAttribute('font-weight', 'bold');
+                text.setAttribute('pointer-events', 'none');
                 text.textContent = p.id;
-                pointsGroup.appendChild(text);
+                g.appendChild(text);
+                
+                // 드래그 이벤트
+                g.addEventListener('mousedown', (e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    tacticsDragState = { pointIndex: i };
+                    g.style.cursor = 'grabbing';
+                });
+                
+                pointsGroup.appendChild(g);
             }
             
             // 같은 색상의 포인트 연결선 (선택적)
@@ -2368,15 +2740,88 @@
             }
         }
         
-        // 화면 좌표 → 필드 좌표 변환
+        // 미니맵 드래그 이벤트 설정
+        (function setupTacticsMinimapDrag() {
+            const svg = document.getElementById('tactics-minimap');
+            if (!svg) return;
+
+            function getSVGCoords(e) {
+                const rect = svg.getBoundingClientRect();
+                const scaleX = 220 / rect.width;
+                const scaleY = 145 / rect.height;
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                return {
+                    x: (clientX - rect.left) * scaleX,
+                    y: (clientY - rect.top) * scaleY
+                };
+            }
+
+            function onDragMove(e) {
+                if (!tacticsDragState) return;
+                e.preventDefault();
+                const { x: svgX, y: svgY } = getSVGCoords(e);
+                const p = tacticsPoints[tacticsDragState.pointIndex];
+                if (!p) return;
+                p.fieldX = Math.max(0, Math.min(fieldWidth, (svgX - 20) / 180 * fieldWidth));
+                p.fieldY = Math.max(0, Math.min(fieldHeight, (svgY - 5) / 135 * fieldHeight));
+                updateTacticsMinimap();
+            }
+
+            function onDragEnd(e) {
+                if (tacticsDragState) {
+                    tacticsDragState = null;
+                    updateTacticsMinimap();
+                }
+            }
+
+            svg.addEventListener('mousemove', onDragMove);
+            svg.addEventListener('mouseup', onDragEnd);
+            svg.addEventListener('mouseleave', onDragEnd);
+            svg.addEventListener('touchmove', onDragMove, { passive: false });
+            svg.addEventListener('touchend', onDragEnd);
+        })();
+
+        
+        // 화면 좌표 → 필드 좌표 (현재 화면에 투영된 키포인트로 TPS 계산 → 시점/줌 무관)
         function screenToField(screenX, screenY) {
-            // 먼저 3D 월드 좌표 얻기
-            const hit = screenToWorld(screenX, screenY);
-            if (!hit) return null;
-            
-            // UV 기반 필드 좌표 계산
-            return uvToField(hit.uv);
+            const srcPoints = []; // 현재 화면 좌표
+            const dstPoints = []; // 대응하는 필드 좌표
+
+            for (const [id, data] of Object.entries(calibrationPoints)) {
+                const fieldCoord = getFieldCoords(id);
+                if (!fieldCoord) continue;
+
+                // 현재 렌더링 기준 화면 위치
+                const screenPos = (data.uv ? uvToScreen(data.uv, true) : null)
+                                  || worldToScreen(data.world3D, true);
+                if (!screenPos) continue;
+
+                srcPoints.push([screenPos.x, screenPos.y]);
+                dstPoints.push([fieldCoord.x, fieldCoord.y]);
+            }
+
+            if (srcPoints.length < 4) {
+                showToast('⚠️ 캘리브레이션 포인트가 4개 이상 화면에 보여야 합니다');
+                return null;
+            }
+
+            const tps = computeTPS(srcPoints, dstPoints);
+            if (!tps) return null;
+
+            const result = applyTPS(tps, screenX, screenY);
+            if (!result) return null;
+
+            const { x: fieldX, y: fieldY } = result;
+            if (fieldX < -20 || fieldX > fieldWidth + 20 || fieldY < -20 || fieldY > fieldHeight + 20) return null;
+
+            return {
+                x: Math.max(0, Math.min(fieldWidth, fieldX)),
+                y: Math.max(0, Math.min(fieldHeight, fieldY))
+            };
         }
+
+        // (구버전 uvToFieldTPS, uvToField는 폴백으로만 유지)
         
         // UV 좌표 → 필드 좌표 (Inverse Bilinear Interpolation)
         function uvToField(uv) {
@@ -2574,6 +3019,7 @@
             const name = pointNames[lastId] || lastId;
             invalidateTPSCache(); // TPS 캐시 무효화
             updateCalibOverlay();
+            redrawFieldGrid();
             updateCalibCount();
             showToast(`↩ "${name}" 취소됨 (${calibrationHistory.length}개 남음)`);
         }
@@ -2593,6 +3039,7 @@
             document.getElementById('selected-point-info').innerHTML = '<span style="color: #888;">포인트를 선택하세요</span>';
             
             updateCalibOverlay();
+            redrawFieldGrid();
             updateCalibCount();
             showToast('↺ 캘리브레이션 초기화');
         }
@@ -2718,12 +3165,12 @@
                     if (el) el.classList.add('set');
                 }
                 
-                // 실제 코트 제약 적용
-                invalidateTPSCache(); // TPS 캐시 무효화
-                applyFieldConstraints();
+                // TPS 캐시 무효화 (world3D 좌표는 저장된 원본 그대로 유지 → 완료 버튼과 동일한 동작)
+                invalidateTPSCache();
                 
                 updateCalibCount();
                 updateCalibOverlay();
+                redrawFieldGrid();
                 
                 // 코너 4개가 있으면 코트 표시 및 전술 버튼 활성화
                 if (calibrationPoints.TL && calibrationPoints.TR && calibrationPoints.BL && calibrationPoints.BR) {
