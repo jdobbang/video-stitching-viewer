@@ -180,9 +180,9 @@
     </div>
     
     <div class="panel" id="info" style="display: none;">
-        <div>🖱️ 드래그: 시점 이동 &nbsp;|&nbsp; 🔍 스크롤: 줌</div>
+        <div>🖱️ 드래그: 시점 이동 &nbsp;|&nbsp; 클릭: 해당 지점으로 이동 &nbsp;|&nbsp; 🔍 스크롤: 줌</div>
         <div style="margin-top: 4px; font-size: 11px; color: rgba(255,255,255,0.5);">
-            ← → ↑ ↓ 이동 &nbsp;|&nbsp; Q/E 회전 &nbsp;|&nbsp; W/S FOV
+            A/W/D/S 이동 &nbsp;|&nbsp; Q/E 회전 &nbsp;|&nbsp; R/F 줌인/아웃
         </div>
     </div>
     
@@ -255,12 +255,12 @@
         // --- Smooth keyboard control system ---
         const keysPressed = new Set();
         const velocity = { lon: 0, lat: 0, rotation: 0, fov: 0 };
-        const ACCEL = 0.06;       // 가속도
-        const DAMPING = 0.92;     // 감쇠 (1에 가까울수록 관성 큼)
+        const ACCEL = 0.025;      // 가속도 (낮춤)
+        const DAMPING = 0.90;     // 감쇠 (1에 가까울수록 관성 큼)
         const MAX_VEL = {
-            pan: 1.2,
-            rotation: 0.15,
-            fov: 0.5,
+            pan: 0.6,
+            rotation: 0.08,
+            fov: 0.35,
         };
         const VEL_THRESHOLD = 0.001; // 이 이하면 0으로 스냅
 
@@ -431,8 +431,10 @@
             const codeMap = {
                 'ArrowLeft': 'arrowleft', 'ArrowRight': 'arrowright',
                 'ArrowUp': 'arrowup', 'ArrowDown': 'arrowdown',
+                'KeyA': 'arrowleft', 'KeyW': 'arrowup',
+                'KeyD': 'arrowright', 'KeyS': 'arrowdown',
                 'KeyQ': 'q', 'KeyE': 'e',
-                'KeyW': 'w', 'KeyS': 's',
+                'KeyR': 'zoomin', 'KeyF': 'zoomout',
             };
             window.addEventListener('keydown', (e) => {
                 const mapped = codeMap[e.code];
@@ -552,6 +554,8 @@
         }
 
         let prevPointerX = 0, prevPointerY = 0;
+        let smoothTarget = null; // { lon, lat } — 클릭 시 부드러운 이동 목표
+        const SMOOTH_LERP = 0.08; // 보간 속도 (0~1, 클수록 빠름)
 
         function onPointerDown(event) {
             isUserInteracting = true;
@@ -581,14 +585,48 @@
             }
         }
 
-        function onPointerUp() {
+        function onPointerUp(event) {
             isUserInteracting = false;
-            // velocity는 이미 설정되어 있으므로 감쇠로 자연스럽게 멈춤
+
+            // 클릭 판정: 드래그 거리가 5px 이하면 클릭으로 간주
+            const dx = event.clientX - onPointerDownMouseX;
+            const dy = event.clientY - onPointerDownMouseY;
+            if (Math.sqrt(dx * dx + dy * dy) < 5) {
+                // 클릭 지점으로 부드럽게 이동
+                velocity.lon = 0;
+                velocity.lat = 0;
+                const targetLonLat = screenToLonLat(event.clientX, event.clientY);
+                if (targetLonLat) {
+                    smoothTarget = targetLonLat;
+                }
+            }
+            // 드래그인 경우 velocity는 이미 설정되어 있으므로 감쇠로 자연스럽게 멈춤
+        }
+
+        function screenToLonLat(screenX, screenY) {
+            // 화면 좌표를 NDC(-1~1)로 변환
+            const ndcX = (screenX / window.innerWidth) * 2 - 1;
+            const ndcY = -(screenY / window.innerHeight) * 2 + 1;
+
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), camera);
+
+            if (!mesh) return null;
+            const intersects = raycaster.intersectObject(mesh);
+            if (intersects.length === 0) return null;
+
+            const point = intersects[0].point;
+            // 3D 좌표 → lon/lat 변환
+            const r = Math.sqrt(point.x * point.x + point.y * point.y + point.z * point.z);
+            const targetLat = 90 - THREE.MathUtils.radToDeg(Math.acos(point.y / r));
+            const targetLon = THREE.MathUtils.radToDeg(Math.atan2(point.z, point.x));
+            return { lon: targetLon, lat: targetLat };
         }
 
         function onWheel(event) {
-            // 스크롤을 관성 velocity에 누적
-            velocity.fov += event.deltaY * 0.012;
+            // 스크롤을 관성 velocity에 누적 (FOV 적응적: 줌인 시 더 섬세)
+            const zoomSens = (camera.fov / 50) * 0.008;
+            velocity.fov += event.deltaY * zoomSens;
         }
 
         function onResize() {
@@ -601,35 +639,60 @@
         function snap(v) { return Math.abs(v) < VEL_THRESHOLD ? 0 : v; }
 
         function updateSmoothControls() {
-            // FOV에 비례한 이동 스케일 (줌 인 → 느리게, 줌 아웃 → 빠르게)
-            const fovScale = camera.fov / 50;
+            // FOV 적응적 스케일: (fov/50)^1.5 → 줌인 시 훨씬 정밀, 줌아웃 시 적절히 빠르게
+            const fovRatio = camera.fov / 50;
+            const fovScale = Math.pow(fovRatio, 1.5);
 
             // --- 가속 ---
-            // Pan (←→↑↓)
+            // Pan (AWDS / ←→↑↓)
             if (keysPressed.has('arrowleft'))  velocity.lon -= ACCEL * fovScale;
             if (keysPressed.has('arrowright')) velocity.lon += ACCEL * fovScale;
             if (keysPressed.has('arrowup'))    velocity.lat += ACCEL * fovScale;
             if (keysPressed.has('arrowdown'))  velocity.lat -= ACCEL * fovScale;
 
-            // Rotation (Q/E + 버튼)
-            if (keysPressed.has('q') || keysPressed.has('_ccw')) velocity.rotation -= ACCEL * 0.3;
-            if (keysPressed.has('e') || keysPressed.has('_cw'))  velocity.rotation += ACCEL * 0.3;
+            // Rotation (Q/E + 버튼) — FOV에 비례하여 적응
+            const rotScale = fovScale * 0.4;
+            if (keysPressed.has('q') || keysPressed.has('_ccw')) velocity.rotation -= ACCEL * rotScale;
+            if (keysPressed.has('e') || keysPressed.has('_cw'))  velocity.rotation += ACCEL * rotScale;
 
-            // FOV (W/S)
-            if (keysPressed.has('w')) velocity.fov -= ACCEL * 0.8;
-            if (keysPressed.has('s')) velocity.fov += ACCEL * 0.8;
+            // Zoom (R/F) — FOV 비례 (줌인 상태에서 더 섬세)
+            const zoomScale = fovRatio * 0.6;
+            if (keysPressed.has('zoomin'))  velocity.fov -= ACCEL * zoomScale;
+            if (keysPressed.has('zoomout')) velocity.fov += ACCEL * zoomScale;
 
-            // --- 속도 제한 ---
-            velocity.lon      = clamp(velocity.lon,      -MAX_VEL.pan,      MAX_VEL.pan);
-            velocity.lat      = clamp(velocity.lat,      -MAX_VEL.pan,      MAX_VEL.pan);
-            velocity.rotation = clamp(velocity.rotation, -MAX_VEL.rotation, MAX_VEL.rotation);
+            // --- 속도 제한 (FOV 적응적) ---
+            const maxPan = MAX_VEL.pan * fovScale;
+            velocity.lon      = clamp(velocity.lon,      -maxPan,           maxPan);
+            velocity.lat      = clamp(velocity.lat,      -maxPan,           maxPan);
+            velocity.rotation = clamp(velocity.rotation, -MAX_VEL.rotation * fovScale, MAX_VEL.rotation * fovScale);
             velocity.fov      = clamp(velocity.fov,      -MAX_VEL.fov,      MAX_VEL.fov);
+
+            // --- 클릭 이동 애니메이션 ---
+            if (smoothTarget) {
+                // 키보드/드래그 입력이 들어오면 클릭 이동 취소
+                if (velocity.lon !== 0 || velocity.lat !== 0) {
+                    smoothTarget = null;
+                } else {
+                    const dLon = smoothTarget.lon - lon;
+                    const dLat = smoothTarget.lat - lat;
+                    if (Math.abs(dLon) < 0.05 && Math.abs(dLat) < 0.05) {
+                        lon = smoothTarget.lon;
+                        lat = smoothTarget.lat;
+                        smoothTarget = null;
+                    } else {
+                        lon += dLon * SMOOTH_LERP;
+                        lat += dLat * SMOOTH_LERP;
+                    }
+                }
+            }
 
             // --- 적용 ---
 
             // Pan
-            lon += velocity.lon;
-            lat += velocity.lat;
+            if (!smoothTarget) {
+                lon += velocity.lon;
+                lat += velocity.lat;
+            }
 
             // Rotation
             if (velocity.rotation !== 0 && mesh) {
@@ -657,7 +720,7 @@
 
             updateSmoothControls();
 
-            lat = clamp(lat, -45, 45);
+            // lat 제한 없음 (W/S 무제한 이동)
             const phi = THREE.MathUtils.degToRad(90 - lat);
             const theta = THREE.MathUtils.degToRad(lon);
 

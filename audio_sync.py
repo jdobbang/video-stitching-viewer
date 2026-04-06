@@ -30,7 +30,9 @@ def get_ffmpeg():
 
 def get_fps(mov_path):
     import shutil, re
+    print(f"  [DEBUG get_fps] mov_path={mov_path}")
     ffprobe = shutil.which("ffprobe")
+    print(f"  [DEBUG get_fps] ffprobe={ffprobe}")
     if ffprobe:
         try:
             r = subprocess.run(
@@ -39,21 +41,27 @@ def get_fps(mov_path):
                  "-of", "csv=p=0", mov_path],
                 capture_output=True, text=True,
             )
+            print(f"  [DEBUG get_fps] ffprobe stdout={repr(r.stdout)}, stderr={repr(r.stderr)}")
             num, den = r.stdout.strip().split("/")
             return float(num) / float(den)
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"  [DEBUG get_fps] ffprobe exception: {e}")
     ffmpeg = get_ffmpeg()
+    print(f"  [DEBUG get_fps] ffmpeg={ffmpeg}")
     try:
         r = subprocess.run([ffmpeg, "-i", mov_path], capture_output=True, text=True)
+        # print video stream line
+        for line in r.stderr.split('\n'):
+            if 'Video' in line or 'fps' in line:
+                print(f"  [DEBUG get_fps] ffmpeg: {line.strip()}")
         m = re.search(r'(\d+(?:\.\d+)?)\s*fps', r.stderr)
         if m:
             return float(m.group(1))
         m = re.search(r'(\d+)/(\d+)\s*tbr', r.stderr)
         if m:
             return float(m.group(1)) / float(m.group(2))
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"  [DEBUG get_fps] ffmpeg exception: {e}")
     return None
 
 

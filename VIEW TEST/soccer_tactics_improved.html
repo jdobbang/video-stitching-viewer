@@ -1,0 +1,2997 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panorama Video Viewer - TPS Enhanced</title>
+    <style>
+        /* === 개선 버전 (TPS + 자동 포인트 추정 + 파노라마 왜곡 보정) === */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            overflow: hidden; 
+            background: #0a0a0f;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        #container { width: 100vw; height: 100vh; }
+        
+        .panel {
+            position: absolute;
+            background: rgba(0,0,0,0.85);
+            padding: 16px 20px;
+            border-radius: 12px;
+            color: white;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        #video-controls {
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            font-size: 13px;
+        }
+        
+        #controls {
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 24px;
+            align-items: center;
+            font-size: 13px;
+        }
+        
+        #mode-panel {
+            top: 20px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        #info {
+            top: 20px;
+            left: 20px;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+        
+        #file-panel {
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            padding: 40px 60px;
+        }
+        
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        
+        .control-group label {
+            font-size: 11px;
+            color: rgba(255,255,255,0.6);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .control-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        input[type="range"] { 
+            width: 100px; 
+            cursor: pointer;
+            accent-color: #4a9eff;
+        }
+        
+        #progress {
+            width: 300px;
+        }
+        
+        .value {
+            min-width: 45px;
+            text-align: right;
+            font-family: monospace;
+            font-size: 13px;
+        }
+        
+        .btn {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: white;
+            padding: 8px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+            width: 100%;
+            text-align: left;
+        }
+        .btn:hover { background: rgba(255,255,255,0.2); }
+        .btn.active { 
+            background: rgba(74, 158, 255, 0.3); 
+            border-color: #4a9eff;
+        }
+        
+        .btn-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+        
+        #file-input {
+            display: none;
+        }
+        
+        .drop-zone {
+            border: 2px dashed rgba(255,255,255,0.3);
+            border-radius: 16px;
+            padding: 40px;
+            margin: 20px 0;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .drop-zone:hover {
+            border-color: #4a9eff;
+            background: rgba(74, 158, 255, 0.1);
+        }
+        .drop-zone.dragover {
+            border-color: #4a9eff;
+            background: rgba(74, 158, 255, 0.2);
+        }
+        
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 16px;
+            display: none;
+        }
+        
+        /* 캘리브레이션 추가 스타일 */
+        #calibration-panel {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.9);
+            padding: 16px;
+            border-radius: 12px;
+            color: white;
+            display: none;
+            flex-direction: column;
+            gap: 10px;
+            min-width: 380px;
+            z-index: 100;
+        }
+        #calibration-panel.active { display: flex; }
+        
+        .calib-section {
+            background: rgba(255,255,255,0.05);
+            padding: 10px;
+            border-radius: 8px;
+        }
+        .calib-section-title {
+            font-size: 12px;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+        .calib-points-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 4px;
+        }
+        .calib-point {
+            width: 40px;
+            height: 40px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .calib-point:hover { background: rgba(255,255,255,0.1); }
+        .calib-point.set { background: #4ade80; border-color: #4ade80; color: #000; }
+        .calib-point.current { border-color: #facc15; box-shadow: 0 0 10px #facc15; }
+        .calib-point.corner { border-color: #ef4444; }
+        .calib-point.center { border-color: #3b82f6; }
+        .calib-point.centerline { border-color: #22c55e; }
+        .calib-point.goal { border-color: #facc15; }
+        .calib-point.penalty { border-color: #a855f7; }
+        .calib-point.sideline { border-color: #f97316; }
+        
+        /* 미니맵 포인트 스타일 */
+        .map-point {
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+        .map-point:hover {
+            r: 8;
+            filter: brightness(1.3);
+        }
+        .map-point.current {
+            r: 9;
+            stroke: #fff;
+            stroke-width: 3;
+            animation: pulse 0.8s infinite;
+        }
+        .map-point.set {
+            stroke: #4ade80;
+            stroke-width: 3;
+            fill: #4ade80 !important;
+        }
+        .map-point.set:hover {
+            stroke: #ef4444;
+            filter: brightness(1.1);
+            cursor: pointer;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        #calib-svg-overlay {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 50;
+        }
+        
+        .calib-cursor {
+            position: absolute;
+            width: 30px; height: 30px;
+            border: 2px solid #facc15;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 99;
+            display: none;
+        }
+        
+        #toast {
+            position: fixed;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.9);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 200;
+        }
+        #toast.active { opacity: 1; }
+    </style>
+</head>
+<body>
+    <div id="container"></div>
+    <svg id="calib-svg-overlay"></svg>
+    <div class="calib-cursor" id="calib-cursor"></div>
+    <div id="loading">비디오 로딩중...</div>
+    <div id="toast"></div>
+    
+    <div id="calibration-panel">
+        <div style="font-size: 14px; font-weight: bold;">📐 필드 캘리브레이션</div>
+        <div style="font-size: 11px; color: #888;">아래 미니맵에서 포인트 클릭 → 화면에서 해당 위치 클릭</div>
+        
+        <div class="calib-section">
+            <div class="calib-section-title">📏 필드 크기 (미터)</div>
+            <div style="display: flex; gap: 8px;">
+                <label style="flex:1; font-size: 11px;">
+                    가로 (터치라인)
+                    <input type="number" id="field-width" value="105" min="90" max="120" style="width: 100%; padding: 4px; margin-top: 2px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.3); border-radius: 4px; color: white;">
+                </label>
+                <label style="flex:1; font-size: 11px;">
+                    세로 (골라인)
+                    <input type="number" id="field-height" value="68" min="45" max="90" style="width: 100%; padding: 4px; margin-top: 2px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.3); border-radius: 4px; color: white;">
+                </label>
+            </div>
+        </div>
+        
+        <div class="calib-section" style="margin-top: 8px;">
+            <div class="calib-section-title" style="cursor: pointer;" onclick="document.getElementById('field-specs-detail').style.display = document.getElementById('field-specs-detail').style.display === 'none' ? 'block' : 'none';">
+                ⚙️ 세부 규격 ▼
+            </div>
+            <div id="field-specs-detail" style="display: none; margin-top: 8px;">
+                <div style="display: flex; gap: 8px; margin-bottom: 6px;">
+                    <label style="flex:1; font-size: 10px;">
+                        센터서클 반지름
+                        <input type="number" id="center-circle-radius" value="9.15" step="0.01" min="5" max="15" style="width: 100%; padding: 3px; margin-top: 2px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.3); border-radius: 4px; color: white; font-size: 11px;">
+                    </label>
+                    <label style="flex:1; font-size: 10px;">
+                        골대 너비
+                        <input type="number" id="goal-width" value="7.32" step="0.01" min="5" max="10" style="width: 100%; padding: 3px; margin-top: 2px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.3); border-radius: 4px; color: white; font-size: 11px;">
+                    </label>
+                </div>
+                <div style="display: flex; gap: 8px; margin-bottom: 6px;">
+                    <label style="flex:1; font-size: 10px;">
+                        페널티박스 깊이
+                        <input type="number" id="penalty-depth" value="16.5" step="0.1" min="10" max="25" style="width: 100%; padding: 3px; margin-top: 2px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.3); border-radius: 4px; color: white; font-size: 11px;">
+                    </label>
+                    <label style="flex:1; font-size: 10px;">
+                        페널티박스 너비
+                        <input type="number" id="penalty-width" value="40.32" step="0.01" min="30" max="50" style="width: 100%; padding: 3px; margin-top: 2px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.3); border-radius: 4px; color: white; font-size: 11px;">
+                    </label>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <label style="flex:1; font-size: 10px;">
+                        골박스 깊이
+                        <input type="number" id="goalbox-depth" value="5.5" step="0.1" min="3" max="10" style="width: 100%; padding: 3px; margin-top: 2px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.3); border-radius: 4px; color: white; font-size: 11px;">
+                    </label>
+                    <label style="flex:1; font-size: 10px;">
+                        골박스 너비
+                        <input type="number" id="goalbox-width" value="18.32" step="0.01" min="10" max="25" style="width: 100%; padding: 3px; margin-top: 2px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.3); border-radius: 4px; color: white; font-size: 11px;">
+                    </label>
+                </div>
+            </div>
+        </div>
+        
+        <div style="background: #1a472a; border-radius: 8px; padding: 12px;">
+            <svg id="calib-minimap" viewBox="0 0 220 145" style="width: 100%; height: 130px; cursor: pointer;">
+                <!-- 등록된 포인트 연결선 (동적 업데이트) -->
+                <g id="minimap-lines"></g>
+                
+                <text x="12" y="72" text-anchor="middle" fill="#fff" font-size="8" opacity="0.7">좌측</text>
+                <text x="12" y="82" text-anchor="middle" fill="#fff" font-size="8" opacity="0.7">골대</text>
+                <text x="208" y="72" text-anchor="middle" fill="#fff" font-size="8" opacity="0.7">우측</text>
+                <text x="208" y="82" text-anchor="middle" fill="#fff" font-size="8" opacity="0.7">골대</text>
+                
+                <!-- 기본 필드 라인 (반투명) -->
+                <rect x="25" y="10" width="170" height="120" fill="none" stroke="#fff" stroke-width="1.5" opacity="0.3"/>
+                <line x1="110" y1="10" x2="110" y2="130" stroke="#fff" stroke-width="1" opacity="0.2"/>
+                <circle cx="110" cy="70" r="18" fill="none" stroke="#fff" stroke-width="1" opacity="0.2"/>
+                <rect x="25" y="32" width="28" height="76" fill="none" stroke="#fff" stroke-width="1" opacity="0.2"/>
+                <rect x="167" y="32" width="28" height="76" fill="none" stroke="#fff" stroke-width="1" opacity="0.2"/>
+                <line x1="25" y1="55" x2="25" y2="85" stroke="#facc15" stroke-width="2" opacity="0.4"/>
+                <line x1="195" y1="55" x2="195" y2="85" stroke="#facc15" stroke-width="2" opacity="0.4"/>
+                
+                <circle class="map-point corner" data-id="TL" cx="25" cy="10" r="6" fill="#ef4444" opacity="0.8" stroke="#fff" stroke-width="1"/>
+                <circle class="map-point corner" data-id="TR" cx="195" cy="10" r="6" fill="#ef4444" opacity="0.8" stroke="#fff" stroke-width="1"/>
+                <circle class="map-point corner" data-id="BL" cx="25" cy="130" r="6" fill="#ef4444" opacity="0.8" stroke="#fff" stroke-width="1"/>
+                <circle class="map-point corner" data-id="BR" cx="195" cy="130" r="6" fill="#ef4444" opacity="0.8" stroke="#fff" stroke-width="1"/>
+                
+                <circle class="map-point centerline" data-id="CLA" cx="110" cy="10" r="5" fill="#22c55e" opacity="0.8" stroke="#fff" stroke-width="1"/>
+                <circle class="map-point centerline" data-id="CLB" cx="110" cy="130" r="5" fill="#22c55e" opacity="0.8" stroke="#fff" stroke-width="1"/>
+                
+                <circle class="map-point center" data-id="CL" cx="92" cy="70" r="5" fill="#3b82f6" opacity="0.8" stroke="#fff" stroke-width="1"/>
+                <circle class="map-point center" data-id="CR" cx="128" cy="70" r="5" fill="#3b82f6" opacity="0.8" stroke="#fff" stroke-width="1"/>
+                <circle class="map-point center" data-id="CT" cx="110" cy="52" r="5" fill="#3b82f6" opacity="0.8" stroke="#fff" stroke-width="1"/>
+                <circle class="map-point center" data-id="CB" cx="110" cy="88" r="5" fill="#3b82f6" opacity="0.8" stroke="#fff" stroke-width="1"/>
+                
+                <circle class="map-point goal" data-id="GLT" cx="25" cy="55" r="5" fill="#facc15" opacity="0.8" stroke="#fff" stroke-width="1"/>
+                <circle class="map-point goal" data-id="GLB" cx="25" cy="85" r="5" fill="#facc15" opacity="0.8" stroke="#fff" stroke-width="1"/>
+                <circle class="map-point goal" data-id="GRT" cx="195" cy="55" r="5" fill="#facc15" opacity="0.8" stroke="#fff" stroke-width="1"/>
+                <circle class="map-point goal" data-id="GRB" cx="195" cy="85" r="5" fill="#facc15" opacity="0.8" stroke="#fff" stroke-width="1"/>
+                
+                <circle class="map-point penalty" data-id="PLT" cx="53" cy="32" r="5" fill="#a855f7" opacity="0.8" stroke="#fff" stroke-width="1"/>
+                <circle class="map-point penalty" data-id="PLB" cx="53" cy="108" r="5" fill="#a855f7" opacity="0.8" stroke="#fff" stroke-width="1"/>
+                <circle class="map-point penalty" data-id="PRT" cx="167" cy="32" r="5" fill="#a855f7" opacity="0.8" stroke="#fff" stroke-width="1"/>
+                <circle class="map-point penalty" data-id="PRB" cx="167" cy="108" r="5" fill="#a855f7" opacity="0.8" stroke="#fff" stroke-width="1"/>
+                
+                <!-- 페널티박스 엔드라인 포인트 -->
+                <circle class="map-point penalty" data-id="PLET" cx="25" cy="32" r="4" fill="#a855f7" opacity="0.8" stroke="#fff" stroke-width="1"/>
+                <circle class="map-point penalty" data-id="PLEB" cx="25" cy="108" r="4" fill="#a855f7" opacity="0.8" stroke="#fff" stroke-width="1"/>
+                <circle class="map-point penalty" data-id="PRET" cx="195" cy="32" r="4" fill="#a855f7" opacity="0.8" stroke="#fff" stroke-width="1"/>
+                <circle class="map-point penalty" data-id="PREB" cx="195" cy="108" r="4" fill="#a855f7" opacity="0.8" stroke="#fff" stroke-width="1"/>
+                
+                <!-- 사이드라인(터치라인) 중간점 -->
+                <circle class="map-point sideline" data-id="T14" cx="68" cy="10" r="4" fill="#f97316" opacity="0.8" stroke="#fff" stroke-width="1"/>
+                <circle class="map-point sideline" data-id="T34" cx="152" cy="10" r="4" fill="#f97316" opacity="0.8" stroke="#fff" stroke-width="1"/>
+                <circle class="map-point sideline" data-id="B14" cx="68" cy="130" r="4" fill="#f97316" opacity="0.8" stroke="#fff" stroke-width="1"/>
+                <circle class="map-point sideline" data-id="B34" cx="152" cy="130" r="4" fill="#f97316" opacity="0.8" stroke="#fff" stroke-width="1"/>
+            </svg>
+        </div>
+        
+        <div style="display: flex; flex-wrap: wrap; gap: 8px; font-size: 10px; justify-content: center;">
+            <span><span style="color: #ef4444;">●</span> 코너(필수)</span>
+            <span><span style="color: #22c55e;">●</span> 센터라인</span>
+            <span><span style="color: #3b82f6;">●</span> 센터서클</span>
+            <span><span style="color: #facc15;">●</span> 골대</span>
+            <span><span style="color: #a855f7;">●</span> 페널티박스</span>
+            <span><span style="color: #f97316;">●</span> 사이드라인</span>
+        </div>
+        
+        <div id="selected-point-info" style="text-align: center; padding: 8px; background: rgba(255,255,255,0.05); border-radius: 6px; min-height: 20px;">
+            <span style="color: #888;">포인트를 선택하세요</span>
+        </div>
+        
+        <div style="font-size: 11px; text-align: center; color: #888;">
+            설정됨: <span id="calib-count">0</span>개 / 코너 4개 필수
+        </div>
+        <div style="font-size: 10px; text-align: center; color: #666; margin-top: 4px;">
+            💡 <span style="color:#4ade80">초록 포인트</span> 클릭 = 삭제 | 빈 포인트 클릭 = 선택
+        </div>
+        
+        <div style="display: flex; gap: 8px;">
+            <button class="btn" id="undo-calib" style="flex:1;">↩ 뒤로 (Z)</button>
+            <button class="btn" id="reset-calib" style="flex:1;">↺ 리셋</button>
+        </div>
+        <div style="display: flex; gap: 8px;">
+            <button class="btn" id="save-calib" style="flex:1;">💾 저장</button>
+            <button class="btn" id="complete-calib" style="flex:1; background: rgba(74,158,255,0.3); border-color: #4a9eff;">✓ 완료</button>
+        </div>
+    </div>
+    
+    <div class="panel" id="file-panel">
+        <h2 style="margin-bottom: 8px;">🎬 Panorama Video Viewer</h2>
+        <p style="color: rgba(255,255,255,0.6); margin-bottom: 16px;">파노라마 비디오를 3D로 감상하세요</p>
+        
+        <div class="drop-zone" id="drop-zone">
+            <p style="font-size: 48px; margin-bottom: 16px;">📁</p>
+            <p>비디오 파일을 드래그하거나 클릭하여 선택</p>
+            <p style="font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 8px;">MP4, WebM, MOV 지원</p>
+        </div>
+        
+        <input type="file" id="file-input" accept="video/*">
+        
+        <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.1);">
+            <p style="font-size: 12px; color: rgba(255,255,255,0.6); margin-bottom: 8px;">📐 캘리브레이션 불러오기 (선택사항)</p>
+            <button class="btn" id="load-calib-btn" style="width: 100%;">JSON 파일 선택</button>
+            <input type="file" id="calib-input" accept=".json" style="display: none;">
+            <p id="calib-file-name" style="font-size: 11px; color: #4ade80; margin-top: 4px; display: none;"></p>
+        </div>
+    </div>
+    
+    <div class="panel" id="info" style="display: none;">
+        <div>🖱️ 드래그: 시점 이동 &nbsp;|&nbsp; 클릭: 해당 지점으로 이동 &nbsp;|&nbsp; 🔍 스크롤: 줌</div>
+        <div style="margin-top: 4px; font-size: 11px; color: rgba(255,255,255,0.5);">
+            A/W/D/S 이동 &nbsp;|&nbsp; Q/E 회전 &nbsp;|&nbsp; R/F 줌인/아웃
+        </div>
+    </div>
+    
+    <div class="panel" id="mode-panel" style="display: none;">
+        <div style="font-size: 11px; color: rgba(255,255,255,0.6); margin-bottom: 4px;">모드</div>
+        <button class="btn" id="calib-btn">📐 캘리브레이션 (C)</button>
+        <button class="btn" id="grid-toggle-btn" style="display: none;">⚽ 코트 표시 (G)</button>
+        <button class="btn" id="tactics-btn" style="display: none;">🎯 전술 모드 (T)</button>
+        <div style="font-size: 11px; color: rgba(255,255,255,0.6); margin: 8px 0 4px;">투영 모드</div>
+        <button class="btn active" data-mode="cylinder">🔵 Cylinder</button>
+        <button class="btn" data-mode="plane">⬜ Flat Plane</button>
+        <button class="btn" data-mode="sphere">🌐 Sphere</button>
+    </div>
+    
+    <!-- 전술 미니맵 패널 -->
+    <div class="panel" id="tactics-panel" style="display: none; top: 200px; right: 20px; width: 280px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <span style="font-size: 14px; font-weight: bold;">🎯 전술 미니맵</span>
+            <button class="btn" id="tactics-close-btn" style="width: auto; padding: 4px 8px; font-size: 12px;">✕</button>
+        </div>
+        
+        <div style="background: #1a472a; border-radius: 8px; padding: 8px; position: relative;">
+            <svg id="tactics-minimap" viewBox="0 0 220 145" style="width: 100%; height: 160px;">
+                <!-- 필드 배경 -->
+                <rect x="20" y="5" width="180" height="135" fill="#2d5a3d" stroke="#fff" stroke-width="1.5"/>
+                <!-- 센터라인 -->
+                <line x1="110" y1="5" x2="110" y2="140" stroke="#fff" stroke-width="1" opacity="0.7"/>
+                <!-- 센터서클 -->
+                <circle cx="110" cy="72.5" r="20" fill="none" stroke="#fff" stroke-width="1" opacity="0.7"/>
+                <circle cx="110" cy="72.5" r="2" fill="#fff" opacity="0.7"/>
+                <!-- 좌측 페널티박스 -->
+                <rect x="20" y="35" width="30" height="75" fill="none" stroke="#fff" stroke-width="1" opacity="0.7"/>
+                <rect x="20" y="52" width="12" height="41" fill="none" stroke="#fff" stroke-width="1" opacity="0.7"/>
+                <!-- 우측 페널티박스 -->
+                <rect x="170" y="35" width="30" height="75" fill="none" stroke="#fff" stroke-width="1" opacity="0.7"/>
+                <rect x="188" y="52" width="12" height="41" fill="none" stroke="#fff" stroke-width="1" opacity="0.7"/>
+                <!-- 골대 -->
+                <line x1="20" y1="60" x2="20" y2="85" stroke="#facc15" stroke-width="3"/>
+                <line x1="200" y1="60" x2="200" y2="85" stroke="#facc15" stroke-width="3"/>
+                
+                <!-- 전술 포인트들이 여기에 그려짐 -->
+                <g id="tactics-points"></g>
+                <g id="tactics-lines"></g>
+            </svg>
+        </div>
+        
+        <div style="display: flex; gap: 6px; margin-top: 8px;">
+            <button class="btn" id="tactics-clear-btn" style="flex: 1; font-size: 11px;">🗑️ 전체 삭제</button>
+            <button class="btn" id="tactics-undo-btn" style="flex: 1; font-size: 11px;">↩️ 되돌리기</button>
+        </div>
+        
+        <div style="display: flex; gap: 6px; margin-top: 6px;">
+            <button class="btn tactics-color-btn active" data-color="#ef4444" style="flex: 1; background: #ef4444;">홈</button>
+            <button class="btn tactics-color-btn" data-color="#3b82f6" style="flex: 1; background: #3b82f6;">원정</button>
+            <button class="btn tactics-color-btn" data-color="#facc15" style="flex: 1; background: #facc15; color: #000;">볼</button>
+        </div>
+        
+        <div style="font-size: 10px; color: #888; margin-top: 8px; text-align: center;">
+            화면 클릭 → 미니맵에 표시 | 포인트: <span id="tactics-count">0</span>개
+        </div>
+    </div>
+    
+    <div class="panel" id="video-controls" style="display: none;">
+        <button class="btn btn-icon" id="play-btn">▶</button>
+        
+        <div class="control-group">
+            <div class="control-row">
+                <span class="value" id="current-time">0:00</span>
+                <input type="range" id="progress" min="0" max="100" value="0">
+                <span class="value" id="duration">0:00</span>
+            </div>
+        </div>
+        
+        <div class="control-group">
+            <label>속도</label>
+            <select id="speed" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 4px 8px; border-radius: 4px;">
+                <option value="0.25">0.25x</option>
+                <option value="0.5">0.5x</option>
+                <option value="1" selected>1x</option>
+                <option value="1.5">1.5x</option>
+                <option value="2">2x</option>
+            </select>
+        </div>
+    </div>
+    
+    <div class="panel" id="controls" style="display: none;">
+        <div class="control-group">
+            <label>Camera FOV</label>
+            <div class="control-row">
+                <input type="range" id="fov" min="20" max="90" value="50">
+                <span class="value" id="fov-val">50°</span>
+            </div>
+        </div>
+        
+        <div class="control-group">
+            <label>비디오 회전</label>
+            <div class="control-row">
+                <button class="btn" id="rotate-ccw" style="width: auto; padding: 8px 12px;" title="반시계방향 90°">↺</button>
+                <button class="btn" id="rotate-cw" style="width: auto; padding: 8px 12px;" title="시계방향 90°">↻</button>
+            </div>
+        </div>
+        
+        <button class="btn" id="reset" style="width: auto; padding: 8px 16px;">⟲ Reset</button>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        let scene, camera, renderer, mesh, videoTexture, video;
+        let currentMode = 'cylinder';
+        let isUserInteracting = false;
+        let onPointerDownMouseX = 0, onPointerDownMouseY = 0;
+        let lon = 0, onPointerDownLon = 0;
+        let lat = 0, onPointerDownLat = 0;
+        let videoRotation = 0; // 비디오 회전 각도 (도)
+
+        // 캘리브레이션 관련 변수
+        let isCalibrationMode = false;
+        let currentCalibPointId = null;
+        let calibrationPoints = {}; // { pointId: { world3D: {x,y,z}, pixel2D: {x,y}, uv: {u,v} } }
+        let calibrationHistory = []; // 포인트 추가 순서 기록 (undo용)
+        let showGrid = false; // 격자 표시 여부
+        let fieldWidth = 105; // 필드 가로 (m)
+        let fieldHeight = 68; // 필드 세로 (m)
+        let centerCircleRadius = 9.15; // 센터서클 반지름 (m)
+        let goalWidth = 7.32; // 골대 너비 (m)
+        let penaltyDepth = 16.5; // 페널티박스 깊이 (m)
+        let penaltyWidth = 40.32; // 페널티박스 너비 (m)
+        let goalboxDepth = 5.5; // 골박스 깊이 (m)
+        let goalboxWidth = 18.32; // 골박스 너비 (m)
+        const calibSvgOverlay = document.getElementById('calib-svg-overlay');
+        
+        // 마킹 관련 변수
+        let isMarkingMode = false;
+        let markingPoints = []; // [{ id, fieldX, fieldY, world3D, color }]
+        let markingIdCounter = 0;
+        let currentMarkingColor = '#ff6b6b'; // 기본 마킹 색상
+        
+        // 전술 모드 관련 변수
+        let isTacticsMode = false;
+        let tacticsPoints = []; // [{ id, fieldX, fieldY, screenX, screenY, color }]
+        let tacticsIdCounter = 0;
+        let currentTacticsColor = '#ef4444'; // 홈팀 색상
+        
+        // 각 포인트의 필드 좌표 (0,0 = 좌상 코너 기준, 가로 방향)
+        // 가로(x) = 터치라인 방향 (0~fieldWidth), 세로(y) = 골라인 방향 (0~fieldHeight)
+        function getFieldCoords(id) {
+            const w = fieldWidth, h = fieldHeight;
+            const r = centerCircleRadius; // 센터서클 반지름
+            const gw = goalWidth; // 골대 너비
+            const pd = penaltyDepth, pw = penaltyWidth; // 페널티박스
+            
+            const coords = {
+                // 코너 (필드 네 모서리)
+                TL: {x: 0, y: 0}, TR: {x: w, y: 0}, 
+                BL: {x: 0, y: h}, BR: {x: w, y: h},
+                // 센터라인 끝 (터치라인과 만나는 점)
+                CLA: {x: w/2, y: 0}, CLB: {x: w/2, y: h},
+                // 센터서클
+                CL: {x: w/2 - r, y: h/2}, CR: {x: w/2 + r, y: h/2},
+                CT: {x: w/2, y: h/2 - r}, CB: {x: w/2, y: h/2 + r},
+                // 좌측 골대
+                GLT: {x: 0, y: (h - gw)/2}, GLB: {x: 0, y: (h + gw)/2},
+                // 우측 골대
+                GRT: {x: w, y: (h - gw)/2}, GRB: {x: w, y: (h + gw)/2},
+                // 좌측 페널티박스
+                PLT: {x: pd, y: (h - pw)/2}, PLB: {x: pd, y: (h + pw)/2},
+                PLET: {x: 0, y: (h - pw)/2}, PLEB: {x: 0, y: (h + pw)/2},
+                // 우측 페널티박스
+                PRT: {x: w - pd, y: (h - pw)/2}, PRB: {x: w - pd, y: (h + pw)/2},
+                PRET: {x: w, y: (h - pw)/2}, PREB: {x: w, y: (h + pw)/2},
+                // 사이드라인(터치라인) 중간점
+                T14: {x: w/4, y: 0}, T34: {x: w*3/4, y: 0},
+                B14: {x: w/4, y: h}, B34: {x: w*3/4, y: h},
+            };
+            return coords[id] || null;
+        }
+        
+        // 포인트 ID → 한글 이름
+        const pointNames = {
+            TL: '좌상 코너', TR: '우상 코너',
+            BL: '좌하 코너', BR: '우하 코너',
+            CLA: '센터라인 상단', CLB: '센터라인 하단',
+            CL: '센터서클 좌측', CR: '센터서클 우측',
+            CT: '센터서클 상단', CB: '센터서클 하단',
+            GLT: '좌측 골대 상단', GLB: '좌측 골대 하단',
+            GRT: '우측 골대 상단', GRB: '우측 골대 하단',
+            PLT: '좌측 페널티 필드쪽 상단', PLB: '좌측 페널티 필드쪽 하단',
+            PLET: '좌측 페널티 엔드라인 상단', PLEB: '좌측 페널티 엔드라인 하단',
+            PRT: '우측 페널티 필드쪽 상단', PRB: '우측 페널티 필드쪽 하단',
+            PRET: '우측 페널티 엔드라인 상단', PREB: '우측 페널티 엔드라인 하단',
+            // 사이드라인 중간점
+            T14: '상단 터치라인 1/4', T34: '상단 터치라인 3/4',
+            B14: '하단 터치라인 1/4', B34: '하단 터치라인 3/4',
+        };
+
+        // Default parameters (will be updated based on video)
+        let IMG_WIDTH = 2850;
+        let IMG_HEIGHT = 1109;
+        let FOCAL_LENGTH = 1920;
+        let TOTAL_FOV_RAD = IMG_WIDTH / FOCAL_LENGTH;
+
+        // --- Smooth keyboard control system ---
+        const keysPressed = new Set();
+        const velocity = { lon: 0, lat: 0, rotation: 0, fov: 0 };
+        const ACCEL = 0.025;      // 가속도 (낮춤)
+        const DAMPING = 0.90;     // 감쇠 (1에 가까울수록 관성 큼)
+        const MAX_VEL = {
+            pan: 0.6,
+            rotation: 0.08,
+            fov: 0.35,
+        };
+        const VEL_THRESHOLD = 0.001; // 이 이하면 0으로 스냅
+
+        const container = document.getElementById('container');
+        const filePanel = document.getElementById('file-panel');
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+
+        // File handling
+        dropZone.addEventListener('click', () => fileInput.click());
+        
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+        
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+        
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('video/')) {
+                loadVideo(file);
+            }
+        });
+        
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                loadVideo(file);
+            }
+        });
+        
+        // 캘리브레이션 파일 불러오기
+        const calibInput = document.getElementById('calib-input');
+        document.getElementById('load-calib-btn').addEventListener('click', () => calibInput.click());
+        
+        calibInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    pendingCalibData = e.target.result;
+                    document.getElementById('calib-file-name').textContent = '✓ ' + file.name;
+                    document.getElementById('calib-file-name').style.display = 'block';
+                };
+                reader.readAsText(file);
+            }
+        });
+        
+        function loadVideo(file) {
+            currentVideoFileName = file.name;
+            filePanel.style.display = 'none';
+            document.getElementById('loading').style.display = 'block';
+            
+            video = document.createElement('video');
+            video.src = URL.createObjectURL(file);
+            video.crossOrigin = 'anonymous';
+            video.loop = true;
+            video.muted = false;
+            video.playsInline = true;
+            
+            video.addEventListener('loadedmetadata', () => {
+                IMG_WIDTH = video.videoWidth;
+                IMG_HEIGHT = video.videoHeight;
+                FOCAL_LENGTH = IMG_WIDTH * 0.67;  // Adjusted for typical panorama
+                TOTAL_FOV_RAD = IMG_WIDTH / FOCAL_LENGTH;
+                
+                document.getElementById('loading').style.display = 'none';
+                initThree();
+                showControls();
+            });
+            
+            video.addEventListener('error', () => {
+                document.getElementById('loading').textContent = '비디오 로드 실패';
+            });
+            
+            video.load();
+        }
+        
+        function showControls() {
+            document.getElementById('info').style.display = 'block';
+            document.getElementById('mode-panel').style.display = 'flex';
+            document.getElementById('video-controls').style.display = 'flex';
+            document.getElementById('controls').style.display = 'flex';
+            
+            // 대기 중인 캘리브레이션 데이터 적용
+            if (pendingCalibData) {
+                setTimeout(() => {
+                    loadCalibration(pendingCalibData);
+                    pendingCalibData = null;
+                }, 500);
+            }
+        }
+        
+        function formatTime(seconds) {
+            const m = Math.floor(seconds / 60);
+            const s = Math.floor(seconds % 60);
+            return `${m}:${s.toString().padStart(2, '0')}`;
+        }
+
+        function initThree() {
+            scene = new THREE.Scene();
+            
+            camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 0, 0.1);
+            
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            container.appendChild(renderer.domElement);
+            
+            // Create video texture
+            videoTexture = new THREE.VideoTexture(video);
+            videoTexture.minFilter = THREE.LinearFilter;
+            videoTexture.magFilter = THREE.LinearFilter;
+            
+            createGeometry('cylinder');
+            
+            // Event listeners
+            container.addEventListener('pointerdown', onPointerDown);
+            container.addEventListener('pointermove', onPointerMove);
+            container.addEventListener('pointerup', onPointerUp);
+            container.addEventListener('wheel', onWheel);
+            window.addEventListener('resize', onResize);
+
+            // Video controls
+            const playBtn = document.getElementById('play-btn');
+            const progress = document.getElementById('progress');
+            const speedSelect = document.getElementById('speed');
+            
+            playBtn.addEventListener('click', () => {
+                if (video.paused) {
+                    video.play();
+                    playBtn.textContent = '⏸';
+                } else {
+                    video.pause();
+                    playBtn.textContent = '▶';
+                }
+            });
+            
+            video.addEventListener('timeupdate', () => {
+                const pct = (video.currentTime / video.duration) * 100;
+                progress.value = pct;
+                document.getElementById('current-time').textContent = formatTime(video.currentTime);
+            });
+            
+            video.addEventListener('loadedmetadata', () => {
+                document.getElementById('duration').textContent = formatTime(video.duration);
+            });
+            
+            progress.addEventListener('input', (e) => {
+                const time = (e.target.value / 100) * video.duration;
+                video.currentTime = time;
+            });
+            
+            speedSelect.addEventListener('change', (e) => {
+                video.playbackRate = parseFloat(e.target.value);
+            });
+
+            // View controls
+            document.getElementById('fov').addEventListener('input', (e) => {
+                camera.fov = parseFloat(e.target.value);
+                camera.updateProjectionMatrix();
+                document.getElementById('fov-val').textContent = e.target.value + '°';
+            });
+
+            document.getElementById('reset').addEventListener('click', resetView);
+            
+            // 비디오 회전 버튼 (마우스 누르고 있는 동안 회전)
+            const rotateCcwBtn = document.getElementById('rotate-ccw');
+            const rotateCwBtn = document.getElementById('rotate-cw');
+
+            const holdKey = (key) => ({
+                md() { keysPressed.add(key); },
+                mu() { keysPressed.delete(key); }
+            });
+            const ccwH = holdKey('_ccw'), cwH = holdKey('_cw');
+            rotateCcwBtn.addEventListener('mousedown', ccwH.md);
+            rotateCcwBtn.addEventListener('mouseup', ccwH.mu);
+            rotateCcwBtn.addEventListener('mouseleave', ccwH.mu);
+            rotateCcwBtn.addEventListener('touchstart', (e) => { e.preventDefault(); ccwH.md(); });
+            rotateCcwBtn.addEventListener('touchend', ccwH.mu);
+            rotateCwBtn.addEventListener('mousedown', cwH.md);
+            rotateCwBtn.addEventListener('mouseup', cwH.mu);
+            rotateCwBtn.addEventListener('mouseleave', cwH.mu);
+            rotateCwBtn.addEventListener('touchstart', (e) => { e.preventDefault(); cwH.md(); });
+            rotateCwBtn.addEventListener('touchend', cwH.mu);
+
+            // 키보드 입력 추적 (e.code 사용 → 한영 상관없이 동작)
+            const codeMap = {
+                'ArrowLeft': 'arrowleft', 'ArrowRight': 'arrowright',
+                'ArrowUp': 'arrowup', 'ArrowDown': 'arrowdown',
+                'KeyA': 'arrowleft', 'KeyW': 'arrowup',
+                'KeyD': 'arrowright', 'KeyS': 'arrowdown',
+                'KeyQ': 'q', 'KeyE': 'e',
+                'KeyR': 'zoomin', 'KeyF': 'zoomout',
+            };
+            window.addEventListener('keydown', (e) => {
+                // C 키: 캘리브레이션 모드 토글
+                if (e.code === 'KeyC') {
+                    e.preventDefault();
+                    toggleCalibrationMode();
+                    return;
+                }
+                // Z 키: 캘리브레이션 뒤로가기
+                if (e.code === 'KeyZ' && isCalibrationMode) {
+                    e.preventDefault();
+                    undoCalibration();
+                    return;
+                }
+                // G 키: 격자 토글
+                if (e.code === 'KeyG' && !isCalibrationMode) {
+                    const hasCorners = calibrationPoints.TL && calibrationPoints.TR && calibrationPoints.BL && calibrationPoints.BR;
+                    if (hasCorners) {
+                        e.preventDefault();
+                        showGrid = !showGrid;
+                        document.getElementById('grid-toggle-btn').classList.toggle('active', showGrid);
+                        updateCalibOverlay();
+                        showToast(showGrid ? '⚽ 코트 표시됨' : '⚽ 코트 숨김');
+                    }
+                    return;
+                }
+                // T 키: 전술 모드 토글
+                if (e.code === 'KeyT' && !isCalibrationMode) {
+                    e.preventDefault();
+                    toggleTacticsMode();
+                    return;
+                }
+                // Space 키: 재생/정지
+                if (e.code === 'Space') {
+                    e.preventDefault();
+                    if (video.paused) {
+                        video.play();
+                        document.getElementById('play-btn').textContent = '⏸';
+                    } else {
+                        video.pause();
+                        document.getElementById('play-btn').textContent = '▶';
+                    }
+                    return;
+                }
+                
+                const mapped = codeMap[e.code];
+                if (mapped) {
+                    keysPressed.add(mapped);
+                    e.preventDefault();
+                }
+            });
+            window.addEventListener('keyup', (e) => {
+                const mapped = codeMap[e.code];
+                if (mapped) keysPressed.delete(mapped);
+            });
+            
+            // 캘리브레이션 버튼 이벤트
+            document.getElementById('calib-btn').addEventListener('click', toggleCalibrationMode);
+            document.getElementById('reset-calib').addEventListener('click', resetCalibration);
+            document.getElementById('undo-calib').addEventListener('click', undoCalibration);
+            document.getElementById('save-calib').addEventListener('click', saveCalibration);
+            document.getElementById('complete-calib').addEventListener('click', () => {
+                // 필드 크기 저장
+                fieldWidth = parseFloat(document.getElementById('field-width').value) || 105;
+                fieldHeight = parseFloat(document.getElementById('field-height').value) || 68;
+                
+                // 세부 규격 저장
+                centerCircleRadius = parseFloat(document.getElementById('center-circle-radius').value) || 9.15;
+                goalWidth = parseFloat(document.getElementById('goal-width').value) || 7.32;
+                penaltyDepth = parseFloat(document.getElementById('penalty-depth').value) || 16.5;
+                penaltyWidth = parseFloat(document.getElementById('penalty-width').value) || 40.32;
+                goalboxDepth = parseFloat(document.getElementById('goalbox-depth').value) || 5.5;
+                goalboxWidth = parseFloat(document.getElementById('goalbox-width').value) || 18.32;
+                
+                const count = Object.keys(calibrationPoints).length;
+                const hasCorners = calibrationPoints.TL && calibrationPoints.TR && calibrationPoints.BL && calibrationPoints.BR;
+                
+                if (!hasCorners) {
+                    showToast('⚠️ 코너 4개는 필수입니다 (A좌, A우, B좌, B우)');
+                    return;
+                }
+                
+                const extraCount = count - 4;
+                showGrid = true;
+                document.getElementById('grid-toggle-btn').style.display = 'block';
+                document.getElementById('grid-toggle-btn').classList.add('active');
+                document.getElementById('tactics-btn').style.display = 'block';
+                toggleCalibrationMode();
+                
+                if (extraCount > 0) {
+                    showToast(`✓ 코트 오버레이 생성! 코너 4점 + 보정 ${extraCount}점 반영됨`);
+                } else {
+                    showToast(`✓ 코트 오버레이 생성! (더 많은 포인트 = 더 정확)`);
+                }
+            });
+            
+            // 격자 토글 버튼
+            document.getElementById('grid-toggle-btn').addEventListener('click', () => {
+                showGrid = !showGrid;
+                document.getElementById('grid-toggle-btn').classList.toggle('active', showGrid);
+                updateCalibOverlay();
+                showToast(showGrid ? '⚽ 코트 표시됨' : '⚽ 코트 숨김');
+            });
+            
+            // 전술 모드 버튼 이벤트
+            document.getElementById('tactics-btn').addEventListener('click', toggleTacticsMode);
+            document.getElementById('tactics-close-btn').addEventListener('click', toggleTacticsMode);
+            document.getElementById('tactics-clear-btn').addEventListener('click', clearTacticsPoints);
+            document.getElementById('tactics-undo-btn').addEventListener('click', undoTacticsPoint);
+            
+            // 전술 색상 선택 버튼
+            document.querySelectorAll('.tactics-color-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.tactics-color-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    currentTacticsColor = btn.dataset.color;
+                });
+            });
+            
+            // 캘리브레이션 포인트 버튼 이벤트 (미니맵)
+            document.querySelectorAll('.map-point').forEach(p => {
+                p.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const id = p.dataset.id;
+                    
+                    // 이미 등록된 포인트면 삭제
+                    if (calibrationPoints[id]) {
+                        deleteCalibPoint(id);
+                    } else {
+                        // 등록되지 않은 포인트면 선택
+                        selectCalibPoint(id);
+                    }
+                });
+                
+                // 우클릭으로 삭제
+                p.addEventListener('contextmenu', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const id = p.dataset.id;
+                    if (calibrationPoints[id]) {
+                        deleteCalibPoint(id);
+                    }
+                });
+            });
+            
+            // 기존 버튼 방식도 지원
+            document.querySelectorAll('.calib-point').forEach(p => {
+                p.addEventListener('click', () => selectCalibPoint(p.dataset.id));
+            });
+            
+            // Mode buttons
+            document.querySelectorAll('[data-mode]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('[data-mode]').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    currentMode = btn.dataset.mode;
+                    createGeometry(currentMode);
+                });
+            });
+
+            // Start playback
+            video.play().then(() => {
+                document.getElementById('play-btn').textContent = '⏸';
+            }).catch(() => {
+                // Autoplay blocked, user needs to click play
+            });
+            
+            animate();
+        }
+        
+        function resetView() {
+            lon = 0; lat = 0;
+            videoRotation = 0;
+            camera.fov = 50;
+            camera.updateProjectionMatrix();
+            document.getElementById('fov').value = 50;
+            document.getElementById('fov-val').textContent = '50°';
+            createGeometry(currentMode);
+        }
+        
+        function applyVideoRotation() {
+            if (mesh) {
+                // 기본 회전 유지하면서 Z축 회전 추가
+                if (currentMode === 'cylinder' || currentMode === 'sphere') {
+                    mesh.rotation.z = THREE.MathUtils.degToRad(videoRotation);
+                } else {
+                    mesh.rotation.z = THREE.MathUtils.degToRad(videoRotation);
+                }
+                // 회전 변경 시 TPS 캐시 무효화
+                invalidateTPSCache();
+            }
+        }
+
+        function createGeometry(mode) {
+            if (!videoTexture) return;
+            
+            if (mesh) {
+                scene.remove(mesh);
+                mesh.geometry.dispose();
+                mesh.material.dispose();
+            }
+            
+            const curve = 1.0;
+            const distance = 1.0;
+            const radius = 50 * distance;
+            
+            let geometry;
+            
+            if (mode === 'cylinder') {
+                const arcAngle = TOTAL_FOV_RAD * curve;
+                const cylinderHeight = radius * arcAngle / (IMG_WIDTH / IMG_HEIGHT);
+                
+                geometry = new THREE.CylinderGeometry(
+                    radius, radius, cylinderHeight,
+                    64, 1, true,
+                    -arcAngle / 2, arcAngle
+                );
+                geometry.scale(-1, 1, 1);
+                
+            } else if (mode === 'plane') {
+                const planeWidth = radius * 2 * Math.tan(TOTAL_FOV_RAD / 2) * curve;
+                const planeHeight = planeWidth / (IMG_WIDTH / IMG_HEIGHT);
+                
+                geometry = new THREE.PlaneGeometry(planeWidth, planeHeight, 1, 1);
+                geometry.rotateY(Math.PI / 2);
+                geometry.translate(radius, 0, 0);
+                
+            } else if (mode === 'sphere') {
+                const phiLength = TOTAL_FOV_RAD * curve;
+                const thetaLength = phiLength / (IMG_WIDTH / IMG_HEIGHT);
+                
+                geometry = new THREE.SphereGeometry(
+                    radius,
+                    64, 32,
+                    Math.PI / 2 - phiLength / 2, phiLength,
+                    Math.PI / 2 - thetaLength / 2, thetaLength
+                );
+                geometry.scale(-1, 1, 1);
+            }
+            
+            const material = new THREE.MeshBasicMaterial({ 
+                map: videoTexture,
+                side: THREE.DoubleSide
+            });
+            
+            mesh = new THREE.Mesh(geometry, material);
+            
+            if (mode === 'cylinder' || mode === 'sphere') {
+                mesh.rotation.y = Math.PI / 2;
+            }
+            
+            // 비디오 회전 적용
+            mesh.rotation.z = THREE.MathUtils.degToRad(videoRotation);
+            
+            scene.add(mesh);
+        }
+
+        let prevPointerX = 0, prevPointerY = 0;
+        let smoothTarget = null; // { lon, lat } — 클릭 시 부드러운 이동 목표
+        const SMOOTH_LERP = 0.08; // 보간 속도 (0~1, 클수록 빠름)
+
+        function onPointerDown(event) {
+            // 캘리브레이션 모드에서 포인트 등록
+            if (isCalibrationMode && currentCalibPointId) {
+                addCalibrationPoint(event.clientX, event.clientY);
+                return;
+            }
+            
+            // 전술 모드에서 포인트 추가
+            if (isTacticsMode) {
+                addTacticsPoint(event.clientX, event.clientY);
+                return;
+            }
+            
+            isUserInteracting = true;
+            onPointerDownMouseX = event.clientX;
+            onPointerDownMouseY = event.clientY;
+            prevPointerX = event.clientX;
+            prevPointerY = event.clientY;
+            onPointerDownLon = lon;
+            onPointerDownLat = lat;
+            // 드래그 시작하면 관성 초기화
+            velocity.lon = 0;
+            velocity.lat = 0;
+        }
+
+        function onPointerMove(event) {
+            // 캘리브레이션 커서 표시
+            const calibCursor = document.getElementById('calib-cursor');
+            if (isCalibrationMode && currentCalibPointId) {
+                calibCursor.style.display = 'block';
+                calibCursor.style.left = event.clientX + 'px';
+                calibCursor.style.top = event.clientY + 'px';
+            } else {
+                calibCursor.style.display = 'none';
+            }
+            
+            if (isUserInteracting) {
+                const dx = event.clientX - prevPointerX;
+                const dy = event.clientY - prevPointerY;
+                const fovScale = camera.fov / 50;
+                lon -= dx * 0.08 * fovScale;
+                lat += dy * 0.08 * fovScale;
+                // 마우스 이동 속도를 관성으로 전달
+                velocity.lon = -dx * 0.04 * fovScale;
+                velocity.lat = dy * 0.04 * fovScale;
+                prevPointerX = event.clientX;
+                prevPointerY = event.clientY;
+            }
+        }
+
+        function onPointerUp(event) {
+            isUserInteracting = false;
+
+            // 클릭 판정: 드래그 거리가 5px 이하면 클릭으로 간주
+            const dx = event.clientX - onPointerDownMouseX;
+            const dy = event.clientY - onPointerDownMouseY;
+            if (Math.sqrt(dx * dx + dy * dy) < 5) {
+                // 클릭 지점으로 부드럽게 이동
+                velocity.lon = 0;
+                velocity.lat = 0;
+                const targetLonLat = screenToLonLat(event.clientX, event.clientY);
+                if (targetLonLat) {
+                    smoothTarget = targetLonLat;
+                }
+            }
+            // 드래그인 경우 velocity는 이미 설정되어 있으므로 감쇠로 자연스럽게 멈춤
+        }
+
+        function screenToLonLat(screenX, screenY) {
+            // 화면 좌표를 NDC(-1~1)로 변환
+            const ndcX = (screenX / window.innerWidth) * 2 - 1;
+            const ndcY = -(screenY / window.innerHeight) * 2 + 1;
+
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), camera);
+
+            if (!mesh) return null;
+            const intersects = raycaster.intersectObject(mesh);
+            if (intersects.length === 0) return null;
+
+            const point = intersects[0].point;
+            // 3D 좌표 → lon/lat 변환
+            const r = Math.sqrt(point.x * point.x + point.y * point.y + point.z * point.z);
+            const targetLat = 90 - THREE.MathUtils.radToDeg(Math.acos(point.y / r));
+            const targetLon = THREE.MathUtils.radToDeg(Math.atan2(point.z, point.x));
+            return { lon: targetLon, lat: targetLat };
+        }
+
+        function onWheel(event) {
+            // 스크롤을 관성 velocity에 누적 (FOV 적응적: 줌인 시 더 섬세)
+            const zoomSens = (camera.fov / 50) * 0.008;
+            velocity.fov += event.deltaY * zoomSens;
+        }
+
+        function onResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+        function snap(v) { return Math.abs(v) < VEL_THRESHOLD ? 0 : v; }
+
+        function updateSmoothControls() {
+            // FOV 적응적 스케일: (fov/50)^1.5 → 줌인 시 훨씬 정밀, 줌아웃 시 적절히 빠르게
+            const fovRatio = camera.fov / 50;
+            const fovScale = Math.pow(fovRatio, 1.5);
+
+            // --- 가속 ---
+            // Pan (AWDS / ←→↑↓)
+            if (keysPressed.has('arrowleft'))  velocity.lon -= ACCEL * fovScale;
+            if (keysPressed.has('arrowright')) velocity.lon += ACCEL * fovScale;
+            if (keysPressed.has('arrowup'))    velocity.lat += ACCEL * fovScale;
+            if (keysPressed.has('arrowdown'))  velocity.lat -= ACCEL * fovScale;
+
+            // Rotation (Q/E + 버튼) — FOV에 비례하여 적응
+            const rotScale = fovScale * 0.4;
+            if (keysPressed.has('q') || keysPressed.has('_ccw')) velocity.rotation -= ACCEL * rotScale;
+            if (keysPressed.has('e') || keysPressed.has('_cw'))  velocity.rotation += ACCEL * rotScale;
+
+            // Zoom (R/F) — FOV 비례 (줌인 상태에서 더 섬세)
+            const zoomScale = fovRatio * 0.6;
+            if (keysPressed.has('zoomin'))  velocity.fov -= ACCEL * zoomScale;
+            if (keysPressed.has('zoomout')) velocity.fov += ACCEL * zoomScale;
+
+            // --- 속도 제한 (FOV 적응적) ---
+            const maxPan = MAX_VEL.pan * fovScale;
+            velocity.lon      = clamp(velocity.lon,      -maxPan,           maxPan);
+            velocity.lat      = clamp(velocity.lat,      -maxPan,           maxPan);
+            velocity.rotation = clamp(velocity.rotation, -MAX_VEL.rotation * fovScale, MAX_VEL.rotation * fovScale);
+            velocity.fov      = clamp(velocity.fov,      -MAX_VEL.fov,      MAX_VEL.fov);
+
+            // --- 클릭 이동 애니메이션 ---
+            if (smoothTarget) {
+                // 키보드/드래그 입력이 들어오면 클릭 이동 취소
+                if (velocity.lon !== 0 || velocity.lat !== 0) {
+                    smoothTarget = null;
+                } else {
+                    const dLon = smoothTarget.lon - lon;
+                    const dLat = smoothTarget.lat - lat;
+                    if (Math.abs(dLon) < 0.05 && Math.abs(dLat) < 0.05) {
+                        lon = smoothTarget.lon;
+                        lat = smoothTarget.lat;
+                        smoothTarget = null;
+                    } else {
+                        lon += dLon * SMOOTH_LERP;
+                        lat += dLat * SMOOTH_LERP;
+                    }
+                }
+            }
+
+            // --- 적용 ---
+
+            // Pan
+            if (!smoothTarget) {
+                lon += velocity.lon;
+                lat += velocity.lat;
+            }
+
+            // Rotation
+            if (velocity.rotation !== 0 && mesh) {
+                videoRotation += velocity.rotation;
+                mesh.rotation.z = THREE.MathUtils.degToRad(videoRotation);
+            }
+
+            // FOV
+            if (velocity.fov !== 0) {
+                camera.fov = clamp(camera.fov + velocity.fov, 20, 90);
+                camera.updateProjectionMatrix();
+                document.getElementById('fov').value = Math.round(camera.fov);
+                document.getElementById('fov-val').textContent = Math.round(camera.fov) + '\u00B0';
+            }
+
+            // --- 감쇠 ---
+            velocity.lon      = snap(velocity.lon      * DAMPING);
+            velocity.lat      = snap(velocity.lat      * DAMPING);
+            velocity.rotation = snap(velocity.rotation * DAMPING);
+            velocity.fov      = snap(velocity.fov      * DAMPING);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            updateSmoothControls();
+
+            // lat 제한 없음 (W/S 무제한 이동)
+            const phi = THREE.MathUtils.degToRad(90 - lat);
+            const theta = THREE.MathUtils.degToRad(lon);
+
+            const x = 100 * Math.sin(phi) * Math.cos(theta);
+            const y = 100 * Math.cos(phi);
+            const z = 100 * Math.sin(phi) * Math.sin(theta);
+
+            camera.lookAt(x, y, z);
+            renderer.render(scene, camera);
+            
+            // 캘리브레이션 포인트 업데이트 (3D→2D 재투영)
+            updateCalibOverlay();
+        }
+        
+        // ============ 캘리브레이션 함수들 ============
+        
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.classList.add('active');
+            setTimeout(() => t.classList.remove('active'), 2000);
+        }
+        
+        function worldToScreen(w, allowOutside = false) {
+            if (!camera || !renderer || !mesh) return null;
+            
+            // 저장된 좌표는 로컬 좌표이므로 월드 좌표로 변환
+            const localVec = new THREE.Vector3(w.x, w.y, w.z);
+            const worldVec = mesh.localToWorld(localVec.clone());
+            
+            const v = worldVec.project(camera);
+            if (v.z > 1) return null; // 카메라 뒤
+            const x = (v.x * 0.5 + 0.5) * window.innerWidth;
+            const y = (-v.y * 0.5 + 0.5) * window.innerHeight;
+            if (!allowOutside) {
+                if (x < -50 || x > window.innerWidth + 50 || y < -50 || y > window.innerHeight + 50) return null;
+            }
+            return { x, y };
+        }
+        
+        function screenToWorld(sx, sy) {
+            if (!camera || !mesh) return null;
+            const r = new THREE.Raycaster();
+            r.setFromCamera(new THREE.Vector2((sx / window.innerWidth) * 2 - 1, -(sy / window.innerHeight) * 2 + 1), camera);
+            const h = r.intersectObject(mesh);
+            if (h.length > 0) {
+                // 월드 좌표를 메쉬의 로컬 좌표로 변환 (회전 독립적)
+                const localPoint = mesh.worldToLocal(h[0].point.clone());
+                return { 
+                    world3D: { x: localPoint.x, y: localPoint.y, z: localPoint.z },
+                    uv: h[0].uv // 0~1 사이의 텍스처 매핑 좌표
+                };
+            }
+            return null;
+        }
+        
+        function updateCalibOverlay() {
+            if (!calibSvgOverlay) return;
+            calibSvgOverlay.innerHTML = '';
+            
+            // 격자 그리기 (코너 4개가 있을 때만)
+            if (showGrid && calibrationPoints.TL && calibrationPoints.TR && calibrationPoints.BL && calibrationPoints.BR) {
+                drawFieldGrid();
+            }
+            
+            // 캘리브레이션 포인트 표시
+            const colors = { corner: '#ef4444', center: '#3b82f6', centerline: '#22c55e', goal: '#facc15', penalty: '#a855f7', sideline: '#f97316' };
+            
+            for (const [id, data] of Object.entries(calibrationPoints)) {
+                const pos = worldToScreen(data.world3D);
+                if (!pos) continue;
+                
+                const type = id.startsWith('G') ? 'goal' : id.startsWith('P') ? 'penalty' : 
+                             id.startsWith('CL') && id.length === 3 ? 'centerline' :
+                             id.startsWith('C') ? 'center' : 
+                             ['T14', 'T34', 'B14', 'B34'].includes(id) ? 'sideline' :
+                             'corner';
+                const c = colors[type];
+                
+                const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                g.setAttribute('transform', `translate(${pos.x},${pos.y})`);
+                
+                // 외곽 원
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('r', '12');
+                circle.setAttribute('fill', 'none');
+                circle.setAttribute('stroke', c);
+                circle.setAttribute('stroke-width', '3');
+                g.appendChild(circle);
+                
+                // 중앙 점
+                const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                dot.setAttribute('r', '4');
+                dot.setAttribute('fill', c);
+                g.appendChild(dot);
+                
+                // 라벨
+                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                text.setAttribute('y', '-18');
+                text.setAttribute('text-anchor', 'middle');
+                text.setAttribute('fill', c);
+                text.setAttribute('font-size', '11');
+                text.setAttribute('font-weight', 'bold');
+                text.textContent = id;
+                g.appendChild(text);
+                
+                calibSvgOverlay.appendChild(g);
+            }
+        }
+        
+        // Homography 행렬 계산 (4개 코너 사용)
+        function computeHomography() {
+            if (!calibrationPoints.TL || !calibrationPoints.TR || !calibrationPoints.BL || !calibrationPoints.BR) return null;
+            
+            const w = fieldWidth, h = fieldHeight;
+            
+            // 필드 좌표 (source)
+            const src = [
+                [0, 0], [w, 0], [w, h], [0, h]
+            ];
+            
+            // 3D 좌표를 2D 화면에 투영한 좌표 (destination) - 각 축별로 계산
+            const tl = calibrationPoints.TL.world3D;
+            const tr = calibrationPoints.TR.world3D;
+            const br = calibrationPoints.BR.world3D;
+            const bl = calibrationPoints.BL.world3D;
+            
+            return { tl, tr, br, bl, src };
+        }
+        
+        // ============ Thin Plate Spline (TPS) 변환 ============
+        
+        let tpsCache = null; // TPS 계산 결과 캐시
+        
+        // TPS 기저 함수: U(r) = r² * log(r)
+        function tpsKernel(r) {
+            if (r < 1e-10) return 0;
+            return r * r * Math.log(r);
+        }
+        
+        // TPS 행렬 계산 및 가중치 풀이
+        function computeTPS(srcPoints, dstPoints) {
+            const n = srcPoints.length;
+            if (n < 3) return null;
+            
+            // K 행렬 (n x n) - TPS 커널
+            const K = [];
+            for (let i = 0; i < n; i++) {
+                K[i] = [];
+                for (let j = 0; j < n; j++) {
+                    if (i === j) {
+                        K[i][j] = 0;
+                    } else {
+                        const dx = srcPoints[i][0] - srcPoints[j][0];
+                        const dy = srcPoints[i][1] - srcPoints[j][1];
+                        const r = Math.sqrt(dx*dx + dy*dy);
+                        K[i][j] = tpsKernel(r);
+                    }
+                }
+            }
+            
+            // P 행렬 (n x 3) - 아핀 변환 부분 [1, x, y]
+            const P = [];
+            for (let i = 0; i < n; i++) {
+                P[i] = [1, srcPoints[i][0], srcPoints[i][1]];
+            }
+            
+            // 전체 시스템 행렬 L (n+3 x n+3)
+            // [ K  P  ] [w]   [v]
+            // [ P' 0  ] [a] = [0]
+            const size = n + 3;
+            const L = [];
+            for (let i = 0; i < size; i++) {
+                L[i] = new Array(size).fill(0);
+            }
+            
+            // K 부분
+            for (let i = 0; i < n; i++) {
+                for (let j = 0; j < n; j++) {
+                    L[i][j] = K[i][j];
+                }
+            }
+            
+            // P 부분 (오른쪽 상단)
+            for (let i = 0; i < n; i++) {
+                L[i][n] = 1;
+                L[i][n+1] = srcPoints[i][0];
+                L[i][n+2] = srcPoints[i][1];
+            }
+            
+            // P' 부분 (왼쪽 하단)
+            for (let j = 0; j < n; j++) {
+                L[n][j] = 1;
+                L[n+1][j] = srcPoints[j][0];
+                L[n+2][j] = srcPoints[j][1];
+            }
+            
+            // 정규화 (수치 안정성)
+            const lambda = 0.001;
+            for (let i = 0; i < n; i++) {
+                L[i][i] += lambda;
+            }
+            
+            // x, y 각각에 대해 풀기
+            const vx = dstPoints.map(p => p[0]).concat([0, 0, 0]);
+            const vy = dstPoints.map(p => p[1]).concat([0, 0, 0]);
+            
+            const wx = solveLinearSystem(L, vx);
+            const wy = solveLinearSystem(L, vy);
+            
+            if (!wx || !wy) return null;
+            
+            return { srcPoints, wx, wy, n };
+        }
+        
+        // 가우스 소거법으로 선형 시스템 풀기
+        function solveLinearSystem(A, b) {
+            const n = A.length;
+            const M = A.map((row, i) => [...row, b[i]]); // 확장 행렬
+            
+            // Forward elimination
+            for (let i = 0; i < n; i++) {
+                // Pivot 찾기
+                let maxRow = i;
+                for (let k = i + 1; k < n; k++) {
+                    if (Math.abs(M[k][i]) > Math.abs(M[maxRow][i])) maxRow = k;
+                }
+                [M[i], M[maxRow]] = [M[maxRow], M[i]];
+                
+                if (Math.abs(M[i][i]) < 1e-12) continue;
+                
+                for (let k = i + 1; k < n; k++) {
+                    const factor = M[k][i] / M[i][i];
+                    for (let j = i; j <= n; j++) {
+                        M[k][j] -= factor * M[i][j];
+                    }
+                }
+            }
+            
+            // Back substitution
+            const x = new Array(n).fill(0);
+            for (let i = n - 1; i >= 0; i--) {
+                if (Math.abs(M[i][i]) < 1e-12) continue;
+                x[i] = M[i][n];
+                for (let j = i + 1; j < n; j++) {
+                    x[i] -= M[i][j] * x[j];
+                }
+                x[i] /= M[i][i];
+            }
+            
+            return x;
+        }
+        
+        // TPS 변환 적용
+        function applyTPS(tps, x, y) {
+            if (!tps) return null;
+            const { srcPoints, wx, wy, n } = tps;
+            
+            // 아핀 부분
+            let fx = wx[n] + wx[n+1] * x + wx[n+2] * y;
+            let fy = wy[n] + wy[n+1] * x + wy[n+2] * y;
+            
+            // 비선형 부분
+            for (let i = 0; i < n; i++) {
+                const dx = x - srcPoints[i][0];
+                const dy = y - srcPoints[i][1];
+                const r = Math.sqrt(dx*dx + dy*dy);
+                const u = tpsKernel(r);
+                fx += wx[i] * u;
+                fy += wy[i] * u;
+            }
+            
+            return { x: fx, y: fy };
+        }
+        
+        // 센터서클 포인트 자동 추정
+        function estimateCenterCirclePoints() {
+            if (!calibrationPoints.CLA || !calibrationPoints.CLB) return;
+            
+            const cla = calibrationPoints.CLA.world3D;
+            const clb = calibrationPoints.CLB.world3D;
+            
+            // 센터 포인트 (CLA와 CLB의 중점)
+            const center = {
+                x: (cla.x + clb.x) / 2,
+                y: (cla.y + clb.y) / 2,
+                z: (cla.z + clb.z) / 2
+            };
+            
+            // 센터라인 방향 벡터 (CLB - CLA)
+            const lineDir = {
+                x: clb.x - cla.x,
+                y: clb.y - cla.y,
+                z: clb.z - cla.z
+            };
+            const lineLen = Math.sqrt(lineDir.x**2 + lineDir.y**2 + lineDir.z**2);
+            lineDir.x /= lineLen;
+            lineDir.y /= lineLen;
+            lineDir.z /= lineLen;
+            
+            // 센터서클 반지름 (필드 좌표계에서 9.15m)
+            // 실제 3D 좌표계에서의 스케일 계산
+            const halfFieldHeight = fieldHeight / 2;
+            const scale = (lineLen / 2) / halfFieldHeight; // CLA-center 거리 / 필드상 거리
+            const radius3D = 9.15 * scale;
+            
+            // 수평 방향 (센터라인과 수직, y=0 평면에서)
+            // TL-TR 방향을 참조
+            if (calibrationPoints.TL && calibrationPoints.TR) {
+                const tl = calibrationPoints.TL.world3D;
+                const tr = calibrationPoints.TR.world3D;
+                const horizDir = {
+                    x: tr.x - tl.x,
+                    y: 0, // 수평면
+                    z: tr.z - tl.z
+                };
+                const horizLen = Math.sqrt(horizDir.x**2 + horizDir.z**2);
+                horizDir.x /= horizLen;
+                horizDir.z /= horizLen;
+                
+                // CL, CR (좌/우) - 자동 추정된 포인트
+                if (!calibrationPoints.CL) {
+                    calibrationPoints._CL_est = {
+                        world3D: {
+                            x: center.x - horizDir.x * radius3D,
+                            y: center.y,
+                            z: center.z - horizDir.z * radius3D
+                        },
+                        estimated: true
+                    };
+                }
+                if (!calibrationPoints.CR) {
+                    calibrationPoints._CR_est = {
+                        world3D: {
+                            x: center.x + horizDir.x * radius3D,
+                            y: center.y,
+                            z: center.z + horizDir.z * radius3D
+                        },
+                        estimated: true
+                    };
+                }
+                
+                // CT, CB (상/하)
+                if (!calibrationPoints.CT) {
+                    calibrationPoints._CT_est = {
+                        world3D: {
+                            x: center.x - lineDir.x * radius3D,
+                            y: center.y - lineDir.y * radius3D,
+                            z: center.z - lineDir.z * radius3D
+                        },
+                        estimated: true
+                    };
+                }
+                if (!calibrationPoints.CB) {
+                    calibrationPoints._CB_est = {
+                        world3D: {
+                            x: center.x + lineDir.x * radius3D,
+                            y: center.y + lineDir.y * radius3D,
+                            z: center.z + lineDir.z * radius3D
+                        },
+                        estimated: true
+                    };
+                }
+            }
+            
+            console.log('센터서클 포인트 자동 추정 완료');
+        }
+        
+        // 필드 좌표 → 화면 좌표 변환 (개선된 TPS 기반)
+        function fieldToScreen(fx, fy) {
+            if (!calibrationPoints.TL || !calibrationPoints.TR || !calibrationPoints.BL || !calibrationPoints.BR) return null;
+            
+            const w = fieldWidth, h = fieldHeight;
+            
+            // 센터서클 포인트 자동 추정 (필요시)
+            if (calibrationPoints.CLA && calibrationPoints.CLB) {
+                estimateCenterCirclePoints();
+            }
+            
+            // 모든 캘리브레이션 포인트 수집 (추정 포인트 포함)
+            const srcPoints = [];
+            const dstPoints = [];
+            
+            for (const [id, data] of Object.entries(calibrationPoints)) {
+                let fieldCoord;
+                
+                // 추정된 포인트
+                if (id.startsWith('_') && id.endsWith('_est')) {
+                    const realId = id.slice(1, -4); // _CL_est -> CL
+                    fieldCoord = getFieldCoords(realId);
+                } else {
+                    fieldCoord = getFieldCoords(id);
+                }
+                
+                if (!fieldCoord) continue;
+                
+                const screenCoord = worldToScreen(data.world3D, true);
+                if (!screenCoord) continue;
+                
+                srcPoints.push([fieldCoord.x, fieldCoord.y]);
+                dstPoints.push([screenCoord.x, screenCoord.y]);
+            }
+            
+            // 최소 4개 포인트 필요
+            if (srcPoints.length < 4) {
+                // 폴백: 기존 Homography 방식
+                return fieldToScreenHomography(fx, fy);
+            }
+            
+            // TPS 계산 (캐시 무효화 체크)
+            const cacheKey = JSON.stringify(srcPoints) + JSON.stringify(dstPoints);
+            if (!tpsCache || tpsCache.key !== cacheKey) {
+                tpsCache = {
+                    key: cacheKey,
+                    tps: computeTPS(srcPoints, dstPoints)
+                };
+            }
+            
+            if (!tpsCache.tps) {
+                return fieldToScreenHomography(fx, fy);
+            }
+            
+            // TPS 적용
+            const result = applyTPS(tpsCache.tps, fx, fy);
+            
+            // 파노라마 곡률 추가 보정
+            if (result) {
+                const curvatureCorrection = computePanoramaCurvature(fx, fy, w, h);
+                result.x += curvatureCorrection.dx;
+                result.y += curvatureCorrection.dy;
+            }
+            
+            return result;
+        }
+        
+        // 파노라마 곡률 보정 계산
+        function computePanoramaCurvature(fx, fy, w, h) {
+            // 필드 중앙에서의 거리
+            const cx = w / 2, cy = h / 2;
+            const dx = (fx - cx) / cx; // -1 ~ 1
+            const dy = (fy - cy) / cy; // -1 ~ 1
+            
+            // 파노라마 원통 투영에서는 수평 방향으로 곡률 발생
+            // 중앙에서 멀어질수록 더 많이 휘어짐
+            const curveFactor = 0.02; // 곡률 강도 (조정 가능)
+            
+            return {
+                dx: -curveFactor * dx * dy * 50, // 수평 보정
+                dy: curveFactor * dx * dx * 20   // 수직 보정 (배럴 왜곡 유사)
+            };
+        }
+        
+        // 폴백용 Homography 방식 (기존 방식)
+        function fieldToScreenHomography(fx, fy) {
+            const w = fieldWidth, h = fieldHeight;
+            const tl = calibrationPoints.TL.world3D;
+            const tr = calibrationPoints.TR.world3D;
+            const bl = calibrationPoints.BL.world3D;
+            const br = calibrationPoints.BR.world3D;
+            
+            const tlScreen = worldToScreen(tl, true);
+            const trScreen = worldToScreen(tr, true);
+            const blScreen = worldToScreen(bl, true);
+            const brScreen = worldToScreen(br, true);
+            
+            if (!tlScreen || !trScreen || !blScreen || !brScreen) return null;
+            
+            const H = computeHomographyMatrix(
+                [[0, 0], [w, 0], [w, h], [0, h]],
+                [[tlScreen.x, tlScreen.y], [trScreen.x, trScreen.y], 
+                 [brScreen.x, brScreen.y], [blScreen.x, blScreen.y]]
+            );
+            
+            if (!H) return null;
+            
+            return applyHomography(H, fx, fy);
+        }
+        
+        // TPS 캐시 무효화 (캘리브레이션 변경 시 호출)
+        function invalidateTPSCache() {
+            tpsCache = null;
+            // 추정 포인트 제거
+            for (const key of Object.keys(calibrationPoints)) {
+                if (key.startsWith('_') && key.endsWith('_est')) {
+                    delete calibrationPoints[key];
+                }
+            }
+        }
+        
+        // 필드 좌표 → 3D 좌표 변환 (기존 유지, 마커용)
+        function fieldToWorld3D(fx, fy) {
+            const screen = fieldToScreen(fx, fy);
+            if (!screen) return null;
+            return screenToWorld(screen.x, screen.y)?.world3D;
+        }
+        
+        // Homography 행렬 계산 (DLT algorithm)
+        function computeHomographyMatrix(src, dst) {
+            // src: [[x1,y1], [x2,y2], [x3,y3], [x4,y4]]
+            // dst: [[x1',y1'], [x2',y2'], [x3',y3'], [x4',y4']]
+            
+            const A = [];
+            for (let i = 0; i < 4; i++) {
+                const [x, y] = src[i];
+                const [xp, yp] = dst[i];
+                A.push([-x, -y, -1, 0, 0, 0, x*xp, y*xp, xp]);
+                A.push([0, 0, 0, -x, -y, -1, x*yp, y*yp, yp]);
+            }
+            
+            // Solve using SVD (simplified: use pseudo-inverse for 8x9 system)
+            // For simplicity, use a direct solve assuming last element is 1
+            const h = solveHomography(A);
+            if (!h) return null;
+            
+            return [
+                [h[0], h[1], h[2]],
+                [h[3], h[4], h[5]],
+                [h[6], h[7], 1]
+            ];
+        }
+        
+        function solveHomography(A) {
+            // Simplified solver: assume h[8] = 1 and solve 8x8 system
+            const b = [];
+            const M = [];
+            for (let i = 0; i < 8; i++) {
+                b.push(-A[i][8]);
+                M.push(A[i].slice(0, 8));
+            }
+            
+            // Gaussian elimination
+            for (let i = 0; i < 8; i++) {
+                // Find pivot
+                let maxRow = i;
+                for (let k = i + 1; k < 8; k++) {
+                    if (Math.abs(M[k][i]) > Math.abs(M[maxRow][i])) maxRow = k;
+                }
+                [M[i], M[maxRow]] = [M[maxRow], M[i]];
+                [b[i], b[maxRow]] = [b[maxRow], b[i]];
+                
+                if (Math.abs(M[i][i]) < 1e-10) return null;
+                
+                for (let k = i + 1; k < 8; k++) {
+                    const factor = M[k][i] / M[i][i];
+                    for (let j = i; j < 8; j++) {
+                        M[k][j] -= factor * M[i][j];
+                    }
+                    b[k] -= factor * b[i];
+                }
+            }
+            
+            // Back substitution
+            const h = new Array(8);
+            for (let i = 7; i >= 0; i--) {
+                h[i] = b[i];
+                for (let j = i + 1; j < 8; j++) {
+                    h[i] -= M[i][j] * h[j];
+                }
+                h[i] /= M[i][i];
+            }
+            
+            return h;
+        }
+        
+        function applyHomography(H, x, y) {
+            const w = H[2][0]*x + H[2][1]*y + H[2][2];
+            return {
+                x: (H[0][0]*x + H[0][1]*y + H[0][2]) / w,
+                y: (H[1][0]*x + H[1][1]*y + H[1][2]) / w
+            };
+        }
+        
+        // 격자 그리기 → 축구장 코트 라인 오버레이
+        function drawFieldGrid() {
+            const w = fieldWidth, h = fieldHeight;
+            const strokeWidth = 3;
+            const color = 'rgba(255,255,255,0.9)';
+            
+            // 선 그리기 헬퍼 (필드→화면 직접 매핑)
+            function drawLine(x1, y1, x2, y2, c = color, sw = strokeWidth) {
+                const points = [];
+                const steps = 30; // 더 많은 중간점으로 곡률 표현
+                for (let i = 0; i <= steps; i++) {
+                    const t = i / steps;
+                    const fx = x1 + (x2 - x1) * t;
+                    const fy = y1 + (y2 - y1) * t;
+                    const s = fieldToScreen(fx, fy); // 직접 화면 좌표
+                    if (s) points.push(s);
+                }
+                if (points.length >= 2) {
+                    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    const d = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+                    path.setAttribute('d', d);
+                    path.setAttribute('stroke', c);
+                    path.setAttribute('stroke-width', sw);
+                    path.setAttribute('fill', 'none');
+                    path.setAttribute('stroke-linecap', 'round');
+                    calibSvgOverlay.appendChild(path);
+                }
+            }
+            
+            // 원 그리기 헬퍼 (필드→화면 직접 매핑)
+            function drawCircle(cx, cy, radius, c = color, sw = strokeWidth) {
+                const points = [];
+                const steps = 48; // 더 부드러운 원
+                for (let i = 0; i <= steps; i++) {
+                    const angle = (i / steps) * Math.PI * 2;
+                    const fx = cx + Math.cos(angle) * radius;
+                    const fy = cy + Math.sin(angle) * radius;
+                    const s = fieldToScreen(fx, fy);
+                    if (s) points.push(s);
+                }
+                if (points.length >= 2) {
+                    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    const d = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ') + ' Z';
+                    path.setAttribute('d', d);
+                    path.setAttribute('stroke', c);
+                    path.setAttribute('stroke-width', sw);
+                    path.setAttribute('fill', 'none');
+                    calibSvgOverlay.appendChild(path);
+                }
+            }
+            
+            // === 필드 라인 그리기 ===
+            
+            // 1. 터치라인 (좌/우 세로선)
+            drawLine(0, 0, 0, h);      // 좌측
+            drawLine(w, 0, w, h);      // 우측
+            
+            // 2. 골라인 (상/하 가로선)
+            drawLine(0, 0, w, 0);      // 상단
+            drawLine(0, h, w, h);      // 하단
+            
+            // 3. 센터라인
+            drawLine(w/2, 0, w/2, h, 'rgba(255,255,255,0.9)', strokeWidth);
+            
+            // 4. 센터서클
+            drawCircle(w/2, h/2, centerCircleRadius);
+            
+            // 5. 센터스팟
+            drawCircle(w/2, h/2, 0.5, color, 4);
+            
+            // 6. 페널티박스
+            const pDepth = penaltyDepth;
+            const pWidth = penaltyWidth;
+            const penaltyTop = (h - pWidth) / 2;
+            const penaltyBottom = (h + pWidth) / 2;
+            
+            // 좌측 페널티박스
+            drawLine(0, penaltyTop, pDepth, penaltyTop);
+            drawLine(pDepth, penaltyTop, pDepth, penaltyBottom);
+            drawLine(pDepth, penaltyBottom, 0, penaltyBottom);
+            
+            // 우측 페널티박스
+            drawLine(w, penaltyTop, w - pDepth, penaltyTop);
+            drawLine(w - pDepth, penaltyTop, w - pDepth, penaltyBottom);
+            drawLine(w - pDepth, penaltyBottom, w, penaltyBottom);
+            
+            // 7. 골박스
+            const gDepth = goalboxDepth;
+            const gWidth = goalboxWidth;
+            const goalBoxTop = (h - gWidth) / 2;
+            const goalBoxBottom = (h + gWidth) / 2;
+            
+            // 좌측 골박스
+            drawLine(0, goalBoxTop, gDepth, goalBoxTop);
+            drawLine(gDepth, goalBoxTop, gDepth, goalBoxBottom);
+            drawLine(gDepth, goalBoxBottom, 0, goalBoxBottom);
+            
+            // 우측 골박스
+            drawLine(w, goalBoxTop, w - gDepth, goalBoxTop);
+            drawLine(w - gDepth, goalBoxTop, w - gDepth, goalBoxBottom);
+            drawLine(w - gDepth, goalBoxBottom, w, goalBoxBottom);
+            
+            // 8. 페널티스팟 (11m)
+            drawCircle(11, h/2, 0.5, color, 4);
+            drawCircle(w - 11, h/2, 0.5, color, 4);
+            
+            // 9. 페널티아크 (반지름 9.15m, 박스 밖 부분만)
+            function drawPenaltyArc(spotX, isLeft) {
+                const points = [];
+                const steps = 20;
+                for (let i = 0; i <= steps; i++) {
+                    const t = i / steps;
+                    const angle = isLeft ? 
+                        (-Math.PI/3 + t * Math.PI * 2/3) :
+                        (Math.PI * 2/3 + t * Math.PI * 2/3);
+                    const fx = spotX + Math.cos(angle) * 9.15;
+                    const fy = h/2 + Math.sin(angle) * 9.15;
+                    
+                    // 페널티박스 밖에 있을 때만
+                    if ((isLeft && fx > penaltyDepth) || (!isLeft && fx < w - penaltyDepth)) {
+                        const w3d = fieldToWorld3D(fx, fy);
+                        if (w3d) {
+                            const s = worldToScreen(w3d);
+                            if (s) points.push(s);
+                        }
+                    }
+                }
+                if (points.length >= 2) {
+                    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    const d = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+                    path.setAttribute('d', d);
+                    path.setAttribute('stroke', color);
+                    path.setAttribute('stroke-width', strokeWidth);
+                    path.setAttribute('fill', 'none');
+                    calibSvgOverlay.appendChild(path);
+                }
+            }
+            
+            drawPenaltyArc(11, true);      // 좌측
+            drawPenaltyArc(w - 11, false); // 우측
+            
+            // 10. 코너아크 (반지름 1m)
+            function drawCornerArc(cx, cy, startAngle) {
+                const points = [];
+                const steps = 10;
+                for (let i = 0; i <= steps; i++) {
+                    const t = i / steps;
+                    const angle = startAngle + t * Math.PI / 2;
+                    const fx = cx + Math.cos(angle) * 1;
+                    const fy = cy + Math.sin(angle) * 1;
+                    const w3d = fieldToWorld3D(fx, fy);
+                    if (w3d) {
+                        const s = worldToScreen(w3d);
+                        if (s) points.push(s);
+                    }
+                }
+                if (points.length >= 2) {
+                    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    const d = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
+                    path.setAttribute('d', d);
+                    path.setAttribute('stroke', color);
+                    path.setAttribute('stroke-width', strokeWidth);
+                    path.setAttribute('fill', 'none');
+                    calibSvgOverlay.appendChild(path);
+                }
+            }
+            
+            drawCornerArc(0, 0, 0);              // 좌상
+            drawCornerArc(w, 0, Math.PI/2);     // 우상
+            drawCornerArc(w, h, Math.PI);       // 우하
+            drawCornerArc(0, h, Math.PI * 1.5); // 좌하
+        }
+        
+        function toggleCalibrationMode() {
+            isCalibrationMode = !isCalibrationMode;
+            document.getElementById('calibration-panel').classList.toggle('active', isCalibrationMode);
+            document.getElementById('calib-btn').classList.toggle('active', isCalibrationMode);
+            
+            if (isCalibrationMode && video && !video.paused) {
+                video.pause();
+                document.getElementById('play-btn').textContent = '▶';
+            }
+            
+            if (!isCalibrationMode) {
+                currentCalibPointId = null;
+                document.querySelectorAll('.map-point').forEach(p => p.classList.remove('current'));
+                document.querySelectorAll('.calib-point').forEach(p => p.classList.remove('current'));
+                document.getElementById('selected-point-info').innerHTML = '<span style="color: #888;">포인트를 선택하세요</span>';
+            } else {
+                updateCalibCount();
+            }
+        }
+        
+        function selectCalibPoint(id) {
+            currentCalibPointId = id;
+            
+            // 미니맵 포인트 업데이트
+            document.querySelectorAll('.map-point').forEach(p => {
+                p.classList.remove('current');
+                if (p.dataset.id === id) p.classList.add('current');
+            });
+            
+            // 기존 버튼 방식도 지원 (혹시 남아있다면)
+            document.querySelectorAll('.calib-point').forEach(p => {
+                p.classList.remove('current');
+                if (p.dataset.id === id) p.classList.add('current');
+            });
+            
+            // 선택된 포인트 정보 표시
+            const infoEl = document.getElementById('selected-point-info');
+            const name = pointNames[id] || id;
+            const color = id.startsWith('G') ? '#facc15' : 
+                         id.startsWith('P') ? '#a855f7' : 
+                         id.startsWith('CL') && id.length === 3 ? '#22c55e' :
+                         id.startsWith('C') ? '#3b82f6' : 
+                         ['T14', 'T34', 'B14', 'B34'].includes(id) ? '#f97316' :
+                         '#ef4444';
+            infoEl.innerHTML = `<span style="color: ${color}; font-weight: bold;">● ${name}</span> 을(를) 화면에서 클릭하세요`;
+            
+            showToast(`📍 "${name}" 선택됨 - 화면에서 클릭!`);
+        }
+        
+        function updateCalibCount() {
+            const count = Object.keys(calibrationPoints).length;
+            document.getElementById('calib-count').textContent = count;
+            
+            // 미니맵 포인트 상태 업데이트
+            document.querySelectorAll('.map-point').forEach(p => {
+                if (calibrationPoints[p.dataset.id]) {
+                    p.classList.add('set');
+                } else {
+                    p.classList.remove('set');
+                }
+            });
+            
+            // 미니맵 시각화 업데이트
+            updateMinimapVisualization();
+        }
+        
+        // 포인트 삭제 함수
+        function deleteCalibPoint(id) {
+            if (!calibrationPoints[id]) return;
+            
+            delete calibrationPoints[id];
+            calibrationHistory = calibrationHistory.filter(pid => pid !== id);
+            
+            // UI 업데이트
+            const el = document.querySelector(`.map-point[data-id="${id}"]`);
+            if (el) el.classList.remove('set', 'current');
+            
+            // 선택 상태 초기화
+            if (currentCalibPointId === id) {
+                currentCalibPointId = null;
+                document.getElementById('selected-point-info').innerHTML = '<span style="color: #888;">포인트를 선택하세요</span>';
+            }
+            
+            const name = pointNames[id] || id;
+            invalidateTPSCache();
+            updateCalibOverlay();
+            updateCalibCount();
+            showToast(`🗑️ "${name}" 삭제됨`);
+        }
+        
+        // 미니맵 포인트 좌표 매핑
+        const minimapCoords = {
+            TL: {x: 25, y: 10}, TR: {x: 195, y: 10},
+            BL: {x: 25, y: 130}, BR: {x: 195, y: 130},
+            CLA: {x: 110, y: 10}, CLB: {x: 110, y: 130},
+            CL: {x: 92, y: 70}, CR: {x: 128, y: 70},
+            CT: {x: 110, y: 52}, CB: {x: 110, y: 88},
+            GLT: {x: 25, y: 55}, GLB: {x: 25, y: 85},
+            GRT: {x: 195, y: 55}, GRB: {x: 195, y: 85},
+            PLT: {x: 53, y: 32}, PLB: {x: 53, y: 108},
+            PLET: {x: 25, y: 32}, PLEB: {x: 25, y: 108},
+            PRT: {x: 167, y: 32}, PRB: {x: 167, y: 108},
+            PRET: {x: 195, y: 32}, PREB: {x: 195, y: 108},
+            T14: {x: 68, y: 10}, T34: {x: 152, y: 10},
+            B14: {x: 68, y: 130}, B34: {x: 152, y: 130}
+        };
+        
+        // 미니맵 시각화 업데이트
+        function updateMinimapVisualization() {
+            const linesGroup = document.getElementById('minimap-lines');
+            if (!linesGroup) return;
+            
+            linesGroup.innerHTML = '';
+            
+            const registered = Object.keys(calibrationPoints);
+            if (registered.length < 2) return;
+            
+            // 연결선 정의 (등록된 포인트 간)
+            const connections = [
+                // 필드 외곽선
+                ['TL', 'TR'], ['TR', 'BR'], ['BR', 'BL'], ['BL', 'TL'],
+                // 센터라인
+                ['CLA', 'CLB'],
+                // 터치라인 세분화
+                ['TL', 'T14'], ['T14', 'CLA'], ['CLA', 'T34'], ['T34', 'TR'],
+                ['BL', 'B14'], ['B14', 'CLB'], ['CLB', 'B34'], ['B34', 'BR'],
+                // 좌측 페널티박스 (사각형)
+                ['PLET', 'PLT'], ['PLT', 'PLB'], ['PLB', 'PLEB'], ['PLEB', 'PLET'],
+                // 우측 페널티박스 (사각형)
+                ['PRET', 'PRT'], ['PRT', 'PRB'], ['PRB', 'PREB'], ['PREB', 'PRET'],
+                // 센터서클
+                ['CL', 'CT'], ['CT', 'CR'], ['CR', 'CB'], ['CB', 'CL'],
+                // 골대
+                ['GLT', 'GLB'], ['GRT', 'GRB']
+            ];
+            
+            // 등록된 포인트 간 연결선 그리기
+            for (const [p1, p2] of connections) {
+                if (calibrationPoints[p1] && calibrationPoints[p2]) {
+                    const c1 = minimapCoords[p1];
+                    const c2 = minimapCoords[p2];
+                    if (c1 && c2) {
+                        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                        line.setAttribute('x1', c1.x);
+                        line.setAttribute('y1', c1.y);
+                        line.setAttribute('x2', c2.x);
+                        line.setAttribute('y2', c2.y);
+                        line.setAttribute('stroke', '#4ade80');
+                        line.setAttribute('stroke-width', '2');
+                        line.setAttribute('opacity', '0.8');
+                        linesGroup.appendChild(line);
+                    }
+                }
+            }
+            
+            // 센터서클 (4개 포인트 모두 등록되면 원 그리기)
+            if (calibrationPoints.CL && calibrationPoints.CR && calibrationPoints.CT && calibrationPoints.CB) {
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('cx', '110');
+                circle.setAttribute('cy', '70');
+                circle.setAttribute('r', '18');
+                circle.setAttribute('fill', 'none');
+                circle.setAttribute('stroke', '#4ade80');
+                circle.setAttribute('stroke-width', '2');
+                circle.setAttribute('opacity', '0.8');
+                linesGroup.appendChild(circle);
+            }
+            
+            // 등록된 포인트에 체크마크 표시
+            for (const id of registered) {
+                const coord = minimapCoords[id];
+                if (!coord) continue;
+                
+                // 체크마크 원
+                const check = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                check.setAttribute('cx', coord.x);
+                check.setAttribute('cy', coord.y);
+                check.setAttribute('r', '3');
+                check.setAttribute('fill', '#4ade80');
+                linesGroup.appendChild(check);
+            }
+        }
+        
+        // ============ 전술 모드 함수들 ============
+        
+        function toggleTacticsMode() {
+            const hasCorners = calibrationPoints.TL && calibrationPoints.TR && calibrationPoints.BL && calibrationPoints.BR;
+            
+            if (!isTacticsMode && !hasCorners) {
+                showToast('⚠️ 먼저 캘리브레이션을 완료하세요 (코너 4개 필수)');
+                return;
+            }
+            
+            isTacticsMode = !isTacticsMode;
+            document.getElementById('tactics-panel').style.display = isTacticsMode ? 'block' : 'none';
+            document.getElementById('tactics-btn').classList.toggle('active', isTacticsMode);
+            
+            // 캘리브레이션 모드 끄기
+            if (isTacticsMode && isCalibrationMode) {
+                toggleCalibrationMode();
+            }
+            
+            showToast(isTacticsMode ? '🎯 전술 모드 ON - 화면을 클릭하세요' : '🎯 전술 모드 OFF');
+        }
+        
+        function addTacticsPoint(screenX, screenY) {
+            // 화면 좌표 → 필드 좌표 변환
+            const fieldCoord = screenToField(screenX, screenY);
+            if (!fieldCoord) {
+                showToast('⚠️ 필드 영역을 클릭하세요');
+                return;
+            }
+            
+            const point = {
+                id: ++tacticsIdCounter,
+                fieldX: fieldCoord.x,
+                fieldY: fieldCoord.y,
+                color: currentTacticsColor
+            };
+            
+            tacticsPoints.push(point);
+            updateTacticsMinimap();
+            document.getElementById('tactics-count').textContent = tacticsPoints.length;
+        }
+        
+        function clearTacticsPoints() {
+            tacticsPoints = [];
+            updateTacticsMinimap();
+            document.getElementById('tactics-count').textContent = '0';
+            showToast('🗑️ 전술 포인트 전체 삭제됨');
+        }
+        
+        function undoTacticsPoint() {
+            if (tacticsPoints.length === 0) {
+                showToast('⚠️ 삭제할 포인트가 없습니다');
+                return;
+            }
+            tacticsPoints.pop();
+            updateTacticsMinimap();
+            document.getElementById('tactics-count').textContent = tacticsPoints.length;
+            showToast('↩️ 마지막 포인트 삭제됨');
+        }
+        
+        function updateTacticsMinimap() {
+            const pointsGroup = document.getElementById('tactics-points');
+            const linesGroup = document.getElementById('tactics-lines');
+            if (!pointsGroup || !linesGroup) return;
+            
+            pointsGroup.innerHTML = '';
+            linesGroup.innerHTML = '';
+            
+            // 필드 좌표 → 미니맵 좌표 변환
+            // 미니맵: x=20~200 (180px), y=5~140 (135px)
+            // 필드: x=0~105, y=0~68
+            const toMinimapX = (fx) => 20 + (fx / fieldWidth) * 180;
+            const toMinimapY = (fy) => 5 + (fy / fieldHeight) * 135;
+            
+            // 포인트 그리기
+            for (const p of tacticsPoints) {
+                const mx = toMinimapX(p.fieldX);
+                const my = toMinimapY(p.fieldY);
+                
+                // 외곽 원
+                const outerCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                outerCircle.setAttribute('cx', mx);
+                outerCircle.setAttribute('cy', my);
+                outerCircle.setAttribute('r', '8');
+                outerCircle.setAttribute('fill', p.color);
+                outerCircle.setAttribute('stroke', '#fff');
+                outerCircle.setAttribute('stroke-width', '2');
+                outerCircle.setAttribute('opacity', '0.9');
+                pointsGroup.appendChild(outerCircle);
+                
+                // 번호 표시
+                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                text.setAttribute('x', mx);
+                text.setAttribute('y', my + 3);
+                text.setAttribute('text-anchor', 'middle');
+                text.setAttribute('fill', '#fff');
+                text.setAttribute('font-size', '8');
+                text.setAttribute('font-weight', 'bold');
+                text.textContent = p.id;
+                pointsGroup.appendChild(text);
+            }
+            
+            // 같은 색상의 포인트 연결선 (선택적)
+            const colorGroups = {};
+            for (const p of tacticsPoints) {
+                if (!colorGroups[p.color]) colorGroups[p.color] = [];
+                colorGroups[p.color].push(p);
+            }
+            
+            for (const [color, points] of Object.entries(colorGroups)) {
+                if (points.length < 2) continue;
+                for (let i = 0; i < points.length - 1; i++) {
+                    const p1 = points[i];
+                    const p2 = points[i + 1];
+                    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                    line.setAttribute('x1', toMinimapX(p1.fieldX));
+                    line.setAttribute('y1', toMinimapY(p1.fieldY));
+                    line.setAttribute('x2', toMinimapX(p2.fieldX));
+                    line.setAttribute('y2', toMinimapY(p2.fieldY));
+                    line.setAttribute('stroke', color);
+                    line.setAttribute('stroke-width', '2');
+                    line.setAttribute('stroke-dasharray', '4,2');
+                    line.setAttribute('opacity', '0.6');
+                    linesGroup.appendChild(line);
+                }
+            }
+        }
+        
+        // 화면 좌표 → 필드 좌표 변환
+        function screenToField(screenX, screenY) {
+            // 먼저 3D 월드 좌표 얻기
+            const hit = screenToWorld(screenX, screenY);
+            if (!hit) return null;
+            
+            // UV 기반 필드 좌표 계산
+            return uvToField(hit.uv);
+        }
+        
+        // UV 좌표 → 필드 좌표 (Inverse Bilinear Interpolation)
+        function uvToField(uv) {
+            const hasCorners = calibrationPoints.TL && calibrationPoints.TR && calibrationPoints.BL && calibrationPoints.BR;
+            if (!hasCorners || !uv) return null;
+            
+            // 코너 4개의 UV 좌표
+            const tlUV = calibrationPoints.TL.uv;
+            const trUV = calibrationPoints.TR.uv;
+            const blUV = calibrationPoints.BL.uv;
+            const brUV = calibrationPoints.BR.uv;
+            
+            if (!tlUV || !trUV || !blUV || !brUV) {
+                console.warn('UV 좌표 없음, world3D 사용');
+                return null;
+            }
+            
+            const pu = uv.u, pv = uv.v;
+            
+            // 사각형의 꼭짓점들
+            const x0 = tlUV.u, y0 = tlUV.v; // TL (s=0, t=0)
+            const x1 = trUV.u, y1 = trUV.v; // TR (s=1, t=0)
+            const x2 = blUV.u, y2 = blUV.v; // BL (s=0, t=1)
+            const x3 = brUV.u, y3 = brUV.v; // BR (s=1, t=1)
+            
+            // Inverse Bilinear Interpolation (해석적 해법)
+            // P = A + B*s + C*t + D*s*t
+            // where A=TL, B=TR-TL, C=BL-TL, D=TL-TR-BL+BR
+            
+            const Ax = x0, Ay = y0;
+            const Bx = x1 - x0, By = y1 - y0;
+            const Cx = x2 - x0, Cy = y2 - y0;
+            const Dx = x0 - x1 - x2 + x3, Dy = y0 - y1 - y2 + y3;
+            
+            // P - A
+            const Ex = pu - Ax, Ey = pv - Ay;
+            
+            // 2차 방정식: (Bx*Dy - By*Dx)*t^2 + (Ex*Dy - Ey*Dx + Bx*Cy - By*Cx)*t + (Ex*Cy - Ey*Cx) = 0
+            const a = Bx * Dy - By * Dx;
+            const b = Ex * Dy - Ey * Dx + Bx * Cy - By * Cx;
+            const c = Ex * Cy - Ey * Cx;
+            
+            let t;
+            if (Math.abs(a) < 0.0001) {
+                // 선형 (평행사변형에 가까움)
+                if (Math.abs(b) < 0.0001) {
+                    t = 0.5; // fallback
+                } else {
+                    t = -c / b;
+                }
+            } else {
+                // 2차 방정식
+                const discriminant = b * b - 4 * a * c;
+                if (discriminant < 0) {
+                    console.warn('UV 역변환 실패: 판별식 < 0');
+                    return null;
+                }
+                const sqrtD = Math.sqrt(discriminant);
+                const t1 = (-b + sqrtD) / (2 * a);
+                const t2 = (-b - sqrtD) / (2 * a);
+                
+                // 0~1 범위에 가까운 해 선택
+                if (t1 >= -0.5 && t1 <= 1.5) t = t1;
+                else if (t2 >= -0.5 && t2 <= 1.5) t = t2;
+                else t = (Math.abs(t1 - 0.5) < Math.abs(t2 - 0.5)) ? t1 : t2;
+            }
+            
+            // t를 구했으므로 s 계산
+            const denomX = Bx + Dx * t;
+            const denomY = By + Dy * t;
+            let s;
+            if (Math.abs(denomX) > Math.abs(denomY)) {
+                s = (Ex - Cx * t) / denomX;
+            } else if (Math.abs(denomY) > 0.0001) {
+                s = (Ey - Cy * t) / denomY;
+            } else {
+                s = 0.5; // fallback
+            }
+            
+            // 필드 좌표로 변환 (s = x/width, t = y/height)
+            const fieldX = s * fieldWidth;
+            const fieldY = t * fieldHeight;
+            
+            console.log(`UV(${pu.toFixed(3)}, ${pv.toFixed(3)}) → Field(${fieldX.toFixed(1)}, ${fieldY.toFixed(1)}) [s=${s.toFixed(3)}, t=${t.toFixed(3)}]`);
+            
+            // 범위 체크 (필드 밖이면 null) - 넉넉하게
+            if (fieldX < -15 || fieldX > fieldWidth + 15 || fieldY < -15 || fieldY > fieldHeight + 15) {
+                console.warn('필드 범위 밖:', fieldX, fieldY);
+                return null;
+            }
+            
+            return { 
+                x: Math.max(0, Math.min(fieldWidth, fieldX)), 
+                y: Math.max(0, Math.min(fieldHeight, fieldY)) 
+            };
+        }
+        
+        // 3D 월드 좌표 → 필드 좌표 (fallback)
+        function worldToField(world3D) {
+            const hasCorners = calibrationPoints.TL && calibrationPoints.TR && calibrationPoints.BL && calibrationPoints.BR;
+            if (!hasCorners) return null;
+            
+            // 코너 4개의 world3D 좌표
+            const tl = calibrationPoints.TL.world3D;
+            const tr = calibrationPoints.TR.world3D;
+            const bl = calibrationPoints.BL.world3D;
+            const br = calibrationPoints.BR.world3D;
+            
+            // 먼저 필드 평면에서의 상대 위치 계산
+            // X축: TL→TR 방향, Y축: TL→BL 방향
+            const xAxis = { x: tr.x - tl.x, y: tr.y - tl.y, z: tr.z - tl.z };
+            const yAxis = { x: bl.x - tl.x, y: bl.y - tl.y, z: bl.z - tl.z };
+            const relative = { x: world3D.x - tl.x, y: world3D.y - tl.y, z: world3D.z - tl.z };
+            
+            // xAxis, yAxis 길이
+            const xLen = Math.sqrt(xAxis.x**2 + xAxis.y**2 + xAxis.z**2);
+            const yLen = Math.sqrt(yAxis.x**2 + yAxis.y**2 + yAxis.z**2);
+            
+            if (xLen < 0.001 || yLen < 0.001) return null;
+            
+            // 투영 (내적)
+            const u = (relative.x * xAxis.x + relative.y * xAxis.y + relative.z * xAxis.z) / (xLen * xLen);
+            const v = (relative.x * yAxis.x + relative.y * yAxis.y + relative.z * yAxis.z) / (yLen * yLen);
+            
+            // 필드 좌표로 변환
+            const fieldX = u * fieldWidth;
+            const fieldY = v * fieldHeight;
+            
+            // 범위 체크 (필드 밖이면 null) - 여유있게
+            if (fieldX < -10 || fieldX > fieldWidth + 10 || fieldY < -10 || fieldY > fieldHeight + 10) {
+                return null;
+            }
+            
+            return { x: Math.max(0, Math.min(fieldWidth, fieldX)), y: Math.max(0, Math.min(fieldHeight, fieldY)) };
+        }
+        
+        function addCalibrationPoint(sx, sy) {
+            if (!currentCalibPointId) {
+                showToast('⚠️ 먼저 미니맵에서 포인트를 선택하세요');
+                return;
+            }
+            
+            const hit = screenToWorld(sx, sy);
+            if (!hit) {
+                showToast('⚠️ 비디오 영역을 클릭하세요');
+                return;
+            }
+            
+            // UV 좌표를 실제 비디오 픽셀 좌표로 변환 (Three.js는 Y축이 아래에서 위로 향하므로 1-y 처리)
+            const pixelX = Math.round(hit.uv.x * IMG_WIDTH);
+            const pixelY = Math.round((1 - hit.uv.y) * IMG_HEIGHT);
+            
+            // 이미 있던 포인트면 히스토리에서 제거
+            calibrationHistory = calibrationHistory.filter(id => id !== currentCalibPointId);
+            
+            calibrationPoints[currentCalibPointId] = { 
+                world3D: hit.world3D,
+                pixel2D: { x: pixelX, y: pixelY },
+                uv: { u: hit.uv.x, v: hit.uv.y }
+            };
+            
+            calibrationHistory.push(currentCalibPointId); // 순서 기록
+            
+            const name = pointNames[currentCalibPointId] || currentCalibPointId;
+            showToast(`✓ "${name}" 등록됨 (${calibrationHistory.length}개)`);
+            
+            // 미니맵 업데이트
+            document.querySelectorAll('.map-point').forEach(p => {
+                p.classList.remove('current');
+                if (p.dataset.id === currentCalibPointId) p.classList.add('set');
+            });
+            
+            // 선택 정보 초기화
+            document.getElementById('selected-point-info').innerHTML = '<span style="color: #888;">포인트를 선택하세요</span>';
+            
+            currentCalibPointId = null;
+            invalidateTPSCache(); // TPS 캐시 무효화
+            updateCalibCount();
+        }
+        
+        function undoCalibration() {
+            if (calibrationHistory.length === 0) {
+                showToast('⚠️ 되돌릴 포인트가 없습니다');
+                return;
+            }
+            
+            const lastId = calibrationHistory.pop();
+            delete calibrationPoints[lastId];
+            
+            // 미니맵 업데이트
+            document.querySelectorAll('.map-point').forEach(p => {
+                if (p.dataset.id === lastId) p.classList.remove('set');
+            });
+            
+            const name = pointNames[lastId] || lastId;
+            invalidateTPSCache(); // TPS 캐시 무효화
+            updateCalibOverlay();
+            updateCalibCount();
+            showToast(`↩ "${name}" 취소됨 (${calibrationHistory.length}개 남음)`);
+        }
+        
+        function resetCalibration() {
+            calibrationPoints = {};
+            calibrationHistory = [];
+            currentCalibPointId = null;
+            showGrid = false;
+            invalidateTPSCache(); // TPS 캐시 무효화
+            
+            // 미니맵 및 버튼 리셋
+            document.querySelectorAll('.map-point').forEach(p => p.classList.remove('set', 'current'));
+            document.querySelectorAll('.calib-point').forEach(p => p.classList.remove('set', 'current'));
+            
+            // 선택 정보 초기화
+            document.getElementById('selected-point-info').innerHTML = '<span style="color: #888;">포인트를 선택하세요</span>';
+            
+            updateCalibOverlay();
+            updateCalibCount();
+            showToast('↺ 캘리브레이션 초기화');
+        }
+        
+        // ============ 캘리브레이션 저장/불러오기 ============
+        
+        let currentVideoFileName = '';
+        let pendingCalibData = null; // 영상 로드 전에 불러온 캘리브레이션 데이터
+        
+        function saveCalibration() {
+            const data = {
+                version: 2,
+                videoFileName: currentVideoFileName,
+                fieldWidth: fieldWidth,
+                fieldHeight: fieldHeight,
+                // 세부 규격
+                centerCircleRadius: centerCircleRadius,
+                goalWidth: goalWidth,
+                penaltyDepth: penaltyDepth,
+                penaltyWidth: penaltyWidth,
+                goalboxDepth: goalboxDepth,
+                goalboxWidth: goalboxWidth,
+                calibrationPoints: {},
+                timestamp: new Date().toISOString()
+            };
+            
+            // 캘리브레이션 포인트 저장
+            for (const [id, point] of Object.entries(calibrationPoints)) {
+                data.calibrationPoints[id] = {
+                    world3D: point.world3D,
+                    pixel2D: point.pixel2D,
+                    uv: point.uv
+                };
+            }
+            
+            // JSON 파일 다운로드
+            const json = JSON.stringify(data, null, 2);
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = currentVideoFileName.replace(/\.[^/.]+$/, '') + '_calibration.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            showToast('💾 캘리브레이션 저장됨');
+        }
+        
+        function loadCalibration(jsonData) {
+            try {
+                const data = JSON.parse(jsonData);
+                
+                if (!data.calibrationPoints) {
+                    showToast('⚠️ 유효하지 않은 캘리브레이션 파일');
+                    return false;
+                }
+                
+                // 필드 크기 복원
+                if (data.fieldWidth) {
+                    fieldWidth = data.fieldWidth;
+                    document.getElementById('field-width').value = fieldWidth;
+                }
+                if (data.fieldHeight) {
+                    fieldHeight = data.fieldHeight;
+                    document.getElementById('field-height').value = fieldHeight;
+                }
+                
+                // 세부 규격 복원
+                if (data.centerCircleRadius) {
+                    centerCircleRadius = data.centerCircleRadius;
+                    document.getElementById('center-circle-radius').value = centerCircleRadius;
+                }
+                if (data.goalWidth) {
+                    goalWidth = data.goalWidth;
+                    document.getElementById('goal-width').value = goalWidth;
+                }
+                if (data.penaltyDepth) {
+                    penaltyDepth = data.penaltyDepth;
+                    document.getElementById('penalty-depth').value = penaltyDepth;
+                }
+                if (data.penaltyWidth) {
+                    penaltyWidth = data.penaltyWidth;
+                    document.getElementById('penalty-width').value = penaltyWidth;
+                }
+                if (data.goalboxDepth) {
+                    goalboxDepth = data.goalboxDepth;
+                    document.getElementById('goalbox-depth').value = goalboxDepth;
+                }
+                if (data.goalboxWidth) {
+                    goalboxWidth = data.goalboxWidth;
+                    document.getElementById('goalbox-width').value = goalboxWidth;
+                }
+                
+                // 캘리브레이션 포인트 복원
+                calibrationPoints = {};
+                calibrationHistory = [];
+                
+                // JSON 좌표 형식 감지 (구버전: 월드 좌표, 신버전: 로컬 좌표)
+                // pixel2D 좌표를 사용하여 UV 계산 후 재매핑
+                for (const [id, point] of Object.entries(data.calibrationPoints)) {
+                    let world3D = point.world3D;
+                    
+                    // pixel2D가 있으면 UV 좌표 계산
+                    let uv = point.uv;
+                    if (!uv && point.pixel2D) {
+                        uv = {
+                            u: point.pixel2D.x / IMG_WIDTH,
+                            v: 1 - (point.pixel2D.y / IMG_HEIGHT) // Y 반전
+                        };
+                    }
+                    
+                    calibrationPoints[id] = {
+                        world3D: world3D,
+                        pixel2D: point.pixel2D,
+                        uv: uv
+                    };
+                    calibrationHistory.push(id);
+                    
+                    // UI 업데이트
+                    const el = document.querySelector(`.map-point[data-id="${id}"]`);
+                    if (el) el.classList.add('set');
+                }
+                
+                // 실제 코트 제약 적용
+                invalidateTPSCache(); // TPS 캐시 무효화
+                applyFieldConstraints();
+                
+                updateCalibCount();
+                updateCalibOverlay();
+                
+                // 코너 4개가 있으면 코트 표시 및 전술 버튼 활성화
+                if (calibrationPoints.TL && calibrationPoints.TR && calibrationPoints.BL && calibrationPoints.BR) {
+                    showGrid = true;
+                    document.getElementById('grid-toggle-btn').style.display = 'block';
+                    document.getElementById('grid-toggle-btn').classList.add('active');
+                    document.getElementById('tactics-btn').style.display = 'block';
+                }
+                
+                showToast(`✓ 캘리브레이션 불러옴 (${Object.keys(calibrationPoints).length}점, 제약 적용됨)`);
+                return true;
+            } catch (e) {
+                console.error('캘리브레이션 로드 오류:', e);
+                showToast('⚠️ 캘리브레이션 파일 오류');
+                return false;
+            }
+        }
+        
+        // ============ 실제 코트 제약 조건 적용 ============
+        
+        let fieldScaleFactor = 1; // 3D 좌표 → 실제 미터 변환 팩터
+        
+        function applyFieldConstraints() {
+            if (!calibrationPoints.TL || !calibrationPoints.TR || !calibrationPoints.BL || !calibrationPoints.BR) return;
+            
+            const tl = calibrationPoints.TL.world3D;
+            const tr = calibrationPoints.TR.world3D;
+            const bl = calibrationPoints.BL.world3D;
+            const br = calibrationPoints.BR.world3D;
+            
+            // 1. 필드 평면 계산 (4개 코너로 최소자승 평면 피팅)
+            const fieldPlane = computeFieldPlane([tl, tr, bl, br]);
+            
+            // 2. 모든 포인트를 평면에 투영 (노이즈 제거)
+            for (const [id, data] of Object.entries(calibrationPoints)) {
+                data.world3D = projectToPlane(data.world3D, fieldPlane);
+            }
+            
+            // 3. 스케일 팩터 계산 (3D 좌표 → 실제 미터)
+            fieldScaleFactor = computeScaleFactor();
+            
+            // 4. 비율 검증
+            validateFieldRatios();
+            
+            console.log('필드 제약 적용 완료:', {
+                plane: fieldPlane,
+                scaleFactor: fieldScaleFactor
+            });
+        }
+        
+        // 스케일 팩터 계산 (평균 사용)
+        function computeScaleFactor() {
+            const dist3D = (a, b) => Math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2 + (a.z-b.z)**2);
+            
+            const factors = [];
+            
+            // 터치라인으로 계산
+            if (calibrationPoints.TL && calibrationPoints.TR) {
+                const d = dist3D(calibrationPoints.TL.world3D, calibrationPoints.TR.world3D);
+                factors.push(fieldWidth / d);
+            }
+            if (calibrationPoints.BL && calibrationPoints.BR) {
+                const d = dist3D(calibrationPoints.BL.world3D, calibrationPoints.BR.world3D);
+                factors.push(fieldWidth / d);
+            }
+            
+            // 골라인으로 계산
+            if (calibrationPoints.TL && calibrationPoints.BL) {
+                const d = dist3D(calibrationPoints.TL.world3D, calibrationPoints.BL.world3D);
+                factors.push(fieldHeight / d);
+            }
+            if (calibrationPoints.TR && calibrationPoints.BR) {
+                const d = dist3D(calibrationPoints.TR.world3D, calibrationPoints.BR.world3D);
+                factors.push(fieldHeight / d);
+            }
+            
+            if (factors.length === 0) return 1;
+            
+            // 평균 스케일 팩터
+            const avgFactor = factors.reduce((a, b) => a + b, 0) / factors.length;
+            console.log(`스케일 팩터: ${avgFactor.toFixed(3)} (3D 좌표 × ${avgFactor.toFixed(2)} = 실제 미터)`);
+            
+            return avgFactor;
+        }
+        
+        // 비율 검증 (스케일 팩터 적용 후)
+        function validateFieldRatios() {
+            const dist3D = (a, b) => Math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2 + (a.z-b.z)**2) * fieldScaleFactor;
+            
+            console.log('=== 비율 검증 (스케일 보정 후) ===');
+            
+            // 필드 비율 (105:68 = 1.544)
+            if (calibrationPoints.TL && calibrationPoints.TR && calibrationPoints.BL) {
+                const touchline = dist3D(calibrationPoints.TL.world3D, calibrationPoints.TR.world3D);
+                const goalline = dist3D(calibrationPoints.TL.world3D, calibrationPoints.BL.world3D);
+                const ratio = touchline / goalline;
+                const expectedRatio = fieldWidth / fieldHeight;
+                const error = ((ratio - expectedRatio) / expectedRatio * 100).toFixed(1);
+                console.log(`필드 비율: ${ratio.toFixed(3)} (기대: ${expectedRatio.toFixed(3)}, 오차: ${error}%)`);
+            }
+            
+            // 센터서클 원형도
+            if (calibrationPoints.CL && calibrationPoints.CR && calibrationPoints.CT && calibrationPoints.CB) {
+                const horizontal = dist3D(calibrationPoints.CL.world3D, calibrationPoints.CR.world3D);
+                const vertical = dist3D(calibrationPoints.CT.world3D, calibrationPoints.CB.world3D);
+                const circularity = Math.min(horizontal, vertical) / Math.max(horizontal, vertical);
+                console.log(`센터서클 원형도: ${(circularity * 100).toFixed(1)}% (가로: ${horizontal.toFixed(2)}m, 세로: ${vertical.toFixed(2)}m)`);
+                
+                if (circularity < 0.5) {
+                    console.warn('⚠️ 센터서클이 매우 찌그러짐 - CT/CB 위치 확인 필요');
+                }
+            }
+            
+            // 좌우 대칭
+            if (calibrationPoints.GLT && calibrationPoints.GLB && calibrationPoints.GRT && calibrationPoints.GRB) {
+                const leftGoal = dist3D(calibrationPoints.GLT.world3D, calibrationPoints.GLB.world3D);
+                const rightGoal = dist3D(calibrationPoints.GRT.world3D, calibrationPoints.GRB.world3D);
+                const symmetry = Math.min(leftGoal, rightGoal) / Math.max(leftGoal, rightGoal);
+                console.log(`골대 대칭: ${(symmetry * 100).toFixed(1)}% (좌: ${leftGoal.toFixed(2)}m, 우: ${rightGoal.toFixed(2)}m)`);
+            }
+        }
+        
+        // 최소자승 평면 피팅 (ax + by + cz = d)
+        function computeFieldPlane(points) {
+            // 중심점 계산
+            const cx = points.reduce((s, p) => s + p.x, 0) / points.length;
+            const cy = points.reduce((s, p) => s + p.y, 0) / points.length;
+            const cz = points.reduce((s, p) => s + p.z, 0) / points.length;
+            
+            // 공분산 행렬
+            let xx = 0, xy = 0, xz = 0, yy = 0, yz = 0, zz = 0;
+            for (const p of points) {
+                const dx = p.x - cx, dy = p.y - cy, dz = p.z - cz;
+                xx += dx * dx; xy += dx * dy; xz += dx * dz;
+                yy += dy * dy; yz += dy * dz; zz += dz * dz;
+            }
+            
+            // 가장 작은 고유값의 고유벡터 = 평면 법선 (간단한 방법)
+            // y가 주로 높이이므로, 대략 (0, 1, 0) 근처라고 가정
+            const det = xx * zz - xz * xz;
+            if (Math.abs(det) < 1e-10) {
+                return { a: 0, b: 1, c: 0, d: cy }; // 수평 평면
+            }
+            
+            // 정규 방정식으로 a, c 계산 (b=1로 고정)
+            const a = (xy * zz - xz * yz) / det;
+            const c = (xx * yz - xy * xz) / det;
+            const len = Math.sqrt(a * a + 1 + c * c);
+            
+            return {
+                a: a / len,
+                b: 1 / len,
+                c: c / len,
+                d: (a * cx + cy + c * cz) / len,
+                center: { x: cx, y: cy, z: cz }
+            };
+        }
+        
+        // 점을 평면에 투영
+        function projectToPlane(point, plane) {
+            const dist = plane.a * point.x + plane.b * point.y + plane.c * point.z - plane.d;
+            return {
+                x: point.x - dist * plane.a,
+                y: point.y - dist * plane.b,
+                z: point.z - dist * plane.c
+            };
+        }
+        
+        // 필드 좌표계 기저 계산
+        function computeFieldBasis(tl, tr, bl) {
+            // X축: TL → TR (터치라인 방향)
+            const xAxis = { x: tr.x - tl.x, y: tr.y - tl.y, z: tr.z - tl.z };
+            const xLen = Math.sqrt(xAxis.x ** 2 + xAxis.y ** 2 + xAxis.z ** 2);
+            xAxis.x /= xLen; xAxis.y /= xLen; xAxis.z /= xLen;
+            
+            // Y축: TL → BL (골라인 방향)
+            const yAxis = { x: bl.x - tl.x, y: bl.y - tl.y, z: bl.z - tl.z };
+            const yLen = Math.sqrt(yAxis.x ** 2 + yAxis.y ** 2 + yAxis.z ** 2);
+            yAxis.x /= yLen; yAxis.y /= yLen; yAxis.z /= yLen;
+            
+            return {
+                origin: tl,
+                xAxis, yAxis,
+                width: xLen,  // 실측 터치라인
+                height: yLen  // 실측 골라인
+            };
+        }
+        
+        // 스케일 검증
+        function validateFieldScale(basis) {
+            const expectedWidth = fieldWidth;   // 105m
+            const expectedHeight = fieldHeight; // 68m
+            
+            const scaleX = expectedWidth / basis.width;
+            const scaleY = expectedHeight / basis.height;
+            
+            console.log(`필드 스케일: X=${scaleX.toFixed(3)}, Y=${scaleY.toFixed(3)}`);
+            console.log(`측 크기: ${basis.width.toFixed(2)}m x ${basis.height.toFixed(2)}m`);
+            
+            // 스케일 차이가 크면 경고
+            if (Math.abs(scaleX - scaleY) > 0.1) {
+                console.warn('X/Y 스케일 불일치 - 코너 위치 확인 필요');
+            }
+        }
+        
+        // 거리 검증 (실제 축구장 치수와 비교)
+        function validateDistances() {
+            const results = [];
+            
+            // 3D 거리 계산 헬퍼
+            const dist3D = (a, b) => Math.sqrt((a.x-b.x)**2 + (a.y-b.y)**2 + (a.z-b.z)**2);
+            
+            // 1. 터치라인 (105m)
+            if (calibrationPoints.TL && calibrationPoints.TR) {
+                const d = dist3D(calibrationPoints.TL.world3D, calibrationPoints.TR.world3D);
+                results.push({ name: '상단 터치라인 (TL-TR)', measured: d, expected: fieldWidth, unit: 'm' });
+            }
+            if (calibrationPoints.BL && calibrationPoints.BR) {
+                const d = dist3D(calibrationPoints.BL.world3D, calibrationPoints.BR.world3D);
+                results.push({ name: '하단 터치라인 (BL-BR)', measured: d, expected: fieldWidth, unit: 'm' });
+            }
+            
+            // 2. 골라인 (68m)
+            if (calibrationPoints.TL && calibrationPoints.BL) {
+                const d = dist3D(calibrationPoints.TL.world3D, calibrationPoints.BL.world3D);
+                results.push({ name: '좌측 골라인 (TL-BL)', measured: d, expected: fieldHeight, unit: 'm' });
+            }
+            if (calibrationPoints.TR && calibrationPoints.BR) {
+                const d = dist3D(calibrationPoints.TR.world3D, calibrationPoints.BR.world3D);
+                results.push({ name: '우측 골라인 (TR-BR)', measured: d, expected: fieldHeight, unit: 'm' });
+            }
+            
+            // 3. 센터서클 지름 (18.3m)
+            if (calibrationPoints.CL && calibrationPoints.CR) {
+                const d = dist3D(calibrationPoints.CL.world3D, calibrationPoints.CR.world3D);
+                results.push({ name: '센터서클 가로 (CL-CR)', measured: d, expected: 18.3, unit: 'm' });
+            }
+            if (calibrationPoints.CT && calibrationPoints.CB) {
+                const d = dist3D(calibrationPoints.CT.world3D, calibrationPoints.CB.world3D);
+                results.push({ name: '센터서클 세로 (CT-CB)', measured: d, expected: 18.3, unit: 'm' });
+            }
+            
+            // 4. 골대 폭 (7.32m)
+            if (calibrationPoints.GLT && calibrationPoints.GLB) {
+                const d = dist3D(calibrationPoints.GLT.world3D, calibrationPoints.GLB.world3D);
+                results.push({ name: '좌측 골대 (GLT-GLB)', measured: d, expected: 7.32, unit: 'm' });
+            }
+            if (calibrationPoints.GRT && calibrationPoints.GRB) {
+                const d = dist3D(calibrationPoints.GRT.world3D, calibrationPoints.GRB.world3D);
+                results.push({ name: '우측 골대 (GRT-GRB)', measured: d, expected: 7.32, unit: 'm' });
+            }
+            
+            // 5. 센터라인 (68m)
+            if (calibrationPoints.CLA && calibrationPoints.CLB) {
+                const d = dist3D(calibrationPoints.CLA.world3D, calibrationPoints.CLB.world3D);
+                results.push({ name: '센터라인 (CLA-CLB)', measured: d, expected: fieldHeight, unit: 'm' });
+            }
+            
+            // 결과 출력
+            console.log('=== 거리 검증 결과 ===');
+            for (const r of results) {
+                const error = ((r.measured - r.expected) / r.expected * 100).toFixed(1);
+                const status = Math.abs(error) < 5 ? '✓' : Math.abs(error) < 15 ? '△' : '✗';
+                console.log(`${status} ${r.name}: ${r.measured.toFixed(2)}${r.unit} (기대: ${r.expected}${r.unit}, 오차: ${error}%)`);
+            }
+            
+            return results;
+        }
+    </script>
+</body>
+</html>
