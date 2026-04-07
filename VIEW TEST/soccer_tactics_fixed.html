@@ -173,9 +173,9 @@
             display: none;
             flex-direction: column;
             gap: 10px;
-            min-width: 380px;
-            max-width: 420px;
-            max-height: 90vh;
+            min-width: 480px;
+            max-width: 520px;
+            max-height: 92vh;
             overflow-y: auto;
             overflow-x: hidden;
             z-index: 100;
@@ -314,7 +314,9 @@
 <body>
     <div id="container"></div>
     <svg id="calib-svg-overlay">
+        <g id="field-lines-layer"></g>
         <g id="calib-points-layer"></g>
+        <g id="tracker-bbox-layer"></g>
     </svg>
     <div class="calib-cursor" id="calib-cursor"></div>
     <div id="loading">비디오 로딩중...</div>
@@ -384,15 +386,15 @@
             <div class="calib-section-title">🌿 잔디 줄무늬 키포인트</div>
             <div style="display: flex; gap: 6px; align-items: flex-end; margin-bottom: 6px;">
                 <label style="font-size: 11px; flex:1;">
-                    줄 수
-                    <input type="number" id="stripe-count" value="20" min="2" max="60" step="1"
+                    칸 수
+                    <input type="number" id="stripe-count" value="24" min="2" max="60" step="1"
                         style="width:100%; padding:3px; margin-top:2px; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.3); border-radius:4px; color:white; font-size:11px;">
                 </label>
                 <label style="font-size: 11px; flex:1;">
                     끝 칸
                     <select id="stripe-end-type" style="width:100%; padding:3px; margin-top:2px; background:#222; border:1px solid rgba(255,255,255,0.3); border-radius:4px; color:white; font-size:11px;">
                         <option value="full">전체 칸</option>
-                        <option value="half">반 칸</option>
+                        <option value="half" selected>반 칸</option>
                     </select>
                 </label>
                 <button class="btn" id="apply-stripe-btn" style="width:auto; padding:4px 10px; font-size:11px;">적용</button>
@@ -400,64 +402,22 @@
             <div style="font-size:10px; color:#aaa; margin-bottom:6px;" id="stripe-info"></div>
         </div>
 
-        <div style="background: #1a472a; border-radius: 8px; padding: 12px; position: relative;">
+        <div style="background: #1a472a; border-radius: 8px; padding: 14px; position: relative;">
             <!-- 줄무늬 버튼 오버레이 (JS로 동적 생성) -->
-            <div id="stripe-quadrant-btns" style="display:none; position:absolute; inset:0; pointer-events:none; z-index:10;"></div>
-            <svg id="calib-minimap" viewBox="0 0 220 145" style="width: 100%; height: 130px; cursor: pointer;">
+            <svg id="calib-minimap" viewBox="0 0 220 145" style="width: 100%; height: auto; aspect-ratio: 220/145; cursor: pointer; position: relative; z-index: 2;">
+                <!-- 동적 필드 라인 (JS에서 그림) -->
+                <g id="minimap-field-lines"></g>
+                <!-- 동적 줄무늬 라인 -->
+                <g id="minimap-stripe-lines"></g>
                 <!-- 등록된 포인트 연결선 (동적 업데이트) -->
                 <g id="minimap-lines"></g>
-                <!-- 잔디 줄무늬 동적 포인트 -->
-                <g id="minimap-stripe-points"></g>
-                
-                <text x="12" y="72" text-anchor="middle" fill="#fff" font-size="8" opacity="0.7">좌측</text>
-                <text x="12" y="82" text-anchor="middle" fill="#fff" font-size="8" opacity="0.7">골대</text>
-                <text x="208" y="72" text-anchor="middle" fill="#fff" font-size="8" opacity="0.7">우측</text>
-                <text x="208" y="82" text-anchor="middle" fill="#fff" font-size="8" opacity="0.7">골대</text>
-                
-                <!-- 기본 필드 라인 (반투명) -->
-                <rect x="25" y="10" width="170" height="120" fill="none" stroke="#fff" stroke-width="1.5" opacity="0.3"/>
-                <line x1="110" y1="10" x2="110" y2="130" stroke="#fff" stroke-width="1" opacity="0.2"/>
-                <circle cx="110" cy="70" r="18" fill="none" stroke="#fff" stroke-width="1" opacity="0.2"/>
-                <rect x="25" y="32" width="28" height="76" fill="none" stroke="#fff" stroke-width="1" opacity="0.2"/>
-                <rect x="167" y="32" width="28" height="76" fill="none" stroke="#fff" stroke-width="1" opacity="0.2"/>
-                <line x1="25" y1="55" x2="25" y2="85" stroke="#facc15" stroke-width="2" opacity="0.4"/>
-                <line x1="195" y1="55" x2="195" y2="85" stroke="#facc15" stroke-width="2" opacity="0.4"/>
-                
-                <circle class="map-point corner" data-id="TL" cx="25" cy="10" r="6" fill="#ef4444" opacity="0.8" stroke="#fff" stroke-width="1"/>
-                <circle class="map-point corner" data-id="TR" cx="195" cy="10" r="6" fill="#ef4444" opacity="0.8" stroke="#fff" stroke-width="1"/>
-                <circle class="map-point corner" data-id="BL" cx="25" cy="130" r="6" fill="#ef4444" opacity="0.8" stroke="#fff" stroke-width="1"/>
-                <circle class="map-point corner" data-id="BR" cx="195" cy="130" r="6" fill="#ef4444" opacity="0.8" stroke="#fff" stroke-width="1"/>
-                
-                <circle class="map-point centerline" data-id="CLA" cx="110" cy="10" r="5" fill="#22c55e" opacity="0.8" stroke="#fff" stroke-width="1"/>
-                <circle class="map-point centerline" data-id="CLB" cx="110" cy="130" r="5" fill="#22c55e" opacity="0.8" stroke="#fff" stroke-width="1"/>
-                
-                <circle class="map-point center" data-id="CL" cx="92" cy="70" r="5" fill="#3b82f6" opacity="0.8" stroke="#fff" stroke-width="1"/>
-                <circle class="map-point center" data-id="CR" cx="128" cy="70" r="5" fill="#3b82f6" opacity="0.8" stroke="#fff" stroke-width="1"/>
-                <circle class="map-point center" data-id="CT" cx="110" cy="52" r="5" fill="#3b82f6" opacity="0.8" stroke="#fff" stroke-width="1"/>
-                <circle class="map-point center" data-id="CB" cx="110" cy="88" r="5" fill="#3b82f6" opacity="0.8" stroke="#fff" stroke-width="1"/>
-                
-                <circle class="map-point goal" data-id="GLT" cx="25" cy="55" r="5" fill="#facc15" opacity="0.8" stroke="#fff" stroke-width="1"/>
-                <circle class="map-point goal" data-id="GLB" cx="25" cy="85" r="5" fill="#facc15" opacity="0.8" stroke="#fff" stroke-width="1"/>
-                <circle class="map-point goal" data-id="GRT" cx="195" cy="55" r="5" fill="#facc15" opacity="0.8" stroke="#fff" stroke-width="1"/>
-                <circle class="map-point goal" data-id="GRB" cx="195" cy="85" r="5" fill="#facc15" opacity="0.8" stroke="#fff" stroke-width="1"/>
-                
-                <circle class="map-point penalty" data-id="PLT" cx="53" cy="32" r="5" fill="#a855f7" opacity="0.8" stroke="#fff" stroke-width="1"/>
-                <circle class="map-point penalty" data-id="PLB" cx="53" cy="108" r="5" fill="#a855f7" opacity="0.8" stroke="#fff" stroke-width="1"/>
-                <circle class="map-point penalty" data-id="PRT" cx="167" cy="32" r="5" fill="#a855f7" opacity="0.8" stroke="#fff" stroke-width="1"/>
-                <circle class="map-point penalty" data-id="PRB" cx="167" cy="108" r="5" fill="#a855f7" opacity="0.8" stroke="#fff" stroke-width="1"/>
-                
-                <!-- 페널티박스 엔드라인 포인트 -->
-                <circle class="map-point penalty" data-id="PLET" cx="25" cy="32" r="4" fill="#a855f7" opacity="0.8" stroke="#fff" stroke-width="1"/>
-                <circle class="map-point penalty" data-id="PLEB" cx="25" cy="108" r="4" fill="#a855f7" opacity="0.8" stroke="#fff" stroke-width="1"/>
-                <circle class="map-point penalty" data-id="PRET" cx="195" cy="32" r="4" fill="#a855f7" opacity="0.8" stroke="#fff" stroke-width="1"/>
-                <circle class="map-point penalty" data-id="PREB" cx="195" cy="108" r="4" fill="#a855f7" opacity="0.8" stroke="#fff" stroke-width="1"/>
-                
-                <!-- 사이드라인(터치라인) 중간점 -->
-                <circle class="map-point sideline" data-id="T14" cx="68" cy="10" r="4" fill="#f97316" opacity="0.8" stroke="#fff" stroke-width="1"/>
-                <circle class="map-point sideline" data-id="T34" cx="152" cy="10" r="4" fill="#f97316" opacity="0.8" stroke="#fff" stroke-width="1"/>
-                <circle class="map-point sideline" data-id="B14" cx="68" cy="130" r="4" fill="#f97316" opacity="0.8" stroke="#fff" stroke-width="1"/>
-                <circle class="map-point sideline" data-id="B34" cx="152" cy="130" r="4" fill="#f97316" opacity="0.8" stroke="#fff" stroke-width="1"/>
+                <!-- 잔디 줄무늬 동적 포인트 (최하위 클릭 우선순위) -->
+                <g id="minimap-stripe-points" style="pointer-events: none;"></g>
+                <!-- 캘리브레이션 포인트 (최상위 클릭 우선순위) -->
+                <g id="minimap-calib-points"></g>
             </svg>
+            <!-- 줄무늬 버튼 오버레이 (포인트보다 아래) -->
+            <div id="stripe-quadrant-btns" style="display:none; position:absolute; inset:0; pointer-events:none; z-index:1;"></div>
         </div>
         
         <div style="display: flex; flex-wrap: wrap; gap: 8px; font-size: 10px; justify-content: center;">
@@ -466,6 +426,7 @@
             <span><span style="color: #3b82f6;">●</span> 센터서클</span>
             <span><span style="color: #facc15;">●</span> 골대</span>
             <span><span style="color: #a855f7;">●</span> 페널티박스</span>
+            <span><span style="color: #06b6d4;">●</span> 중간점</span>
             <span><span style="color: #f97316;">●</span> 사이드라인</span>
             <span><span style="color: #fb923c;">●</span> 잔디줄무늬</span>
         </div>
@@ -498,8 +459,8 @@
         
         <div class="drop-zone" id="drop-zone">
             <p style="font-size: 48px; margin-bottom: 16px;">📁</p>
-            <p>비디오 파일을 드래그하거나 클릭하여 선택</p>
-            <p style="font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 8px;">MP4, WebM, MOV 지원</p>
+            <p>비디오/JSON/ONNX 파일을 드래그하거나 클릭하여 선택</p>
+            <p style="font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 8px;">MP4, WebM, MOV + JSON 캘리브레이션 + ONNX 모델</p>
         </div>
         
         <input type="file" id="file-input" accept="video/*">
@@ -509,6 +470,12 @@
             <button class="btn" id="load-calib-btn" style="width: 100%;">JSON 파일 선택</button>
             <input type="file" id="calib-input" accept=".json" style="display: none;">
             <p id="calib-file-name" style="font-size: 11px; color: #4ade80; margin-top: 4px; display: none;"></p>
+        </div>
+        <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.1);">
+            <p style="font-size: 12px; color: rgba(255,255,255,0.6); margin-bottom: 8px;">🎯 YOLO 모델 (선택사항)</p>
+            <button class="btn" id="load-onnx-btn" style="width: 100%;">ONNX 파일 선택</button>
+            <input type="file" id="onnx-input" accept=".onnx" style="display: none;">
+            <p id="onnx-file-name" style="font-size: 11px; color: #4ade80; margin-top: 4px; display: none;"></p>
         </div>
     </div>
     
@@ -530,31 +497,18 @@
     </div>
     
     <!-- 전술 미니맵 패널 -->
-    <div class="panel" id="tactics-panel" style="display: none; top: 200px; right: 20px; width: 420px;">
+    <div class="panel" id="tactics-panel" style="display: none; top: 80px; right: 20px; width: 520px; z-index: 110;">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
             <span style="font-size: 14px; font-weight: bold;">🎯 전술 미니맵</span>
             <button class="btn" id="tactics-close-btn" style="width: auto; padding: 4px 8px; font-size: 12px;">✕</button>
         </div>
-        
-        <div style="background: #1a472a; border-radius: 8px; padding: 8px; position: relative;">
-            <svg id="tactics-minimap" viewBox="0 0 220 145" style="width: 100%; height: 240px;">
-                <!-- 필드 배경 -->
-                <rect x="20" y="5" width="180" height="135" fill="#2d5a3d" stroke="#fff" stroke-width="1.5"/>
-                <!-- 센터라인 -->
-                <line x1="110" y1="5" x2="110" y2="140" stroke="#fff" stroke-width="1" opacity="0.7"/>
-                <!-- 센터서클 -->
-                <circle cx="110" cy="72.5" r="20" fill="none" stroke="#fff" stroke-width="1" opacity="0.7"/>
-                <circle cx="110" cy="72.5" r="2" fill="#fff" opacity="0.7"/>
-                <!-- 좌측 페널티박스 -->
-                <rect x="20" y="35" width="30" height="75" fill="none" stroke="#fff" stroke-width="1" opacity="0.7"/>
-                <rect x="20" y="52" width="12" height="41" fill="none" stroke="#fff" stroke-width="1" opacity="0.7"/>
-                <!-- 우측 페널티박스 -->
-                <rect x="170" y="35" width="30" height="75" fill="none" stroke="#fff" stroke-width="1" opacity="0.7"/>
-                <rect x="188" y="52" width="12" height="41" fill="none" stroke="#fff" stroke-width="1" opacity="0.7"/>
-                <!-- 골대 -->
-                <line x1="20" y1="60" x2="20" y2="85" stroke="#facc15" stroke-width="3"/>
-                <line x1="200" y1="60" x2="200" y2="85" stroke="#facc15" stroke-width="3"/>
-                
+
+        <div style="background: #1a472a; border-radius: 8px; padding: 10px; position: relative;">
+            <svg id="tactics-minimap" viewBox="0 0 220 145" style="width: 100%; height: auto; aspect-ratio: 220/145;">
+                <!-- 동적 필드 라인 + 줄무늬 (JS에서 그림) -->
+                <g id="tactics-field-lines"></g>
+                <g id="tactics-stripe-lines"></g>
+
                 <!-- 전술 포인트들이 여기에 그려짐 -->
                 <g id="tactics-points"></g>
                 <g id="tactics-lines"></g>
@@ -564,16 +518,24 @@
         <div style="display: flex; gap: 6px; margin-top: 8px;">
             <button class="btn" id="tactics-clear-btn" style="flex: 1; font-size: 11px;">🗑️ 전체 삭제</button>
             <button class="btn" id="tactics-undo-btn" style="flex: 1; font-size: 11px;">↩️ 되돌리기</button>
+            <button class="btn" id="tracker-toggle-btn" style="flex: 1; font-size: 11px;">📡 트래킹</button>
         </div>
+        <div id="tracker-info" style="font-size: 10px; color: #4ade80; margin-top: 4px; display: none; text-align: center;"></div>
         
-        <div style="display: flex; gap: 6px; margin-top: 6px;">
-            <button class="btn tactics-color-btn active" data-color="#ef4444" style="flex: 1; background: #ef4444;">홈</button>
-            <button class="btn tactics-color-btn" data-color="#3b82f6" style="flex: 1; background: #3b82f6;">원정</button>
-            <button class="btn tactics-color-btn" data-color="#facc15" style="flex: 1; background: #facc15; color: #000;">볼</button>
+        <div style="display: flex; gap: 6px; margin-top: 6px; align-items: center;">
+            <div style="flex: 1; display: flex; align-items: center; gap: 4px;">
+                <input type="color" id="team-home-color" value="#ef4444" style="width: 24px; height: 24px; border: none; padding: 0; cursor: pointer; background: none;">
+                <button class="btn tactics-color-btn active" data-team="home" style="flex: 1; font-size: 11px; background: #ef4444;">우리팀</button>
+            </div>
+            <div style="flex: 1; display: flex; align-items: center; gap: 4px;">
+                <input type="color" id="team-away-color" value="#3b82f6" style="width: 24px; height: 24px; border: none; padding: 0; cursor: pointer; background: none;">
+                <button class="btn tactics-color-btn" data-team="away" style="flex: 1; font-size: 11px; background: #3b82f6;">상대팀</button>
+            </div>
+            <button class="btn tactics-color-btn" data-team="ball" style="width: 40px; font-size: 16px;">⚽</button>
         </div>
         
         <div style="font-size: 10px; color: #888; margin-top: 8px; text-align: center;">
-            화면 클릭 → 미니맵에 표시 | 미니맵 선수 드래그 → 위치 조정 | 포인트: <span id="tactics-count">0</span>개
+            클릭→포인트 | 트래킹ON+드래그→자동추적 | 미니맵 드래그→위치조정 | <span id="tactics-count">0</span>개
         </div>
     </div>
     
@@ -621,6 +583,7 @@
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0/dist/ort.min.js"></script>
     <script>
         let scene, camera, renderer, mesh, videoTexture, video;
         let currentMode = 'cylinder';
@@ -644,8 +607,8 @@
         let penaltyWidth = 40.32; // 페널티박스 너비 (m)
         let goalboxDepth = 5.5; // 골박스 깊이 (m)
         let goalboxWidth = 18.32; // 골박스 너비 (m)
-        let stripeInterval = 20; // 줄 수 (개수)
-        let stripeEndType = 'full'; // 'full' | 'half'
+        let stripeInterval = 24; // 칸 수 (개수)
+        let stripeEndType = 'half'; // 'full' | 'half'
         let activeQuadrant = null; // 'TL'|'TR'|'BL'|'BR'|null
         const calibSvgOverlay = document.getElementById('calib-svg-overlay');
         
@@ -657,9 +620,10 @@
         
         // 전술 모드 관련 변수
         let isTacticsMode = false;
-        let tacticsPoints = []; // [{ id, fieldX, fieldY, screenX, screenY, color }]
+        let tacticsPoints = []; // [{ id, fieldX, fieldY, color, team }]
         let tacticsIdCounter = 0;
-        let currentTacticsColor = '#ef4444'; // 홈팀 색상
+        let currentTacticsTeam = 'home'; // 'home' | 'away' | 'ball'
+        let teamColors = { home: '#ef4444', away: '#3b82f6', ball: '#facc15' };
         
         // 전술 미니맵 드래그 관련
         let tacticsDragState = null; // { pointId, pointIndex }
@@ -667,63 +631,210 @@
         
         // 각 포인트의 필드 좌표 (0,0 = 좌상 코너 기준, 가로 방향)
         // 가로(x) = 터치라인 방향 (0~fieldWidth), 세로(y) = 골라인 방향 (0~fieldHeight)
-        function getFieldCoords(id) {
+        // === 규격 기반 교차점 자동 생성 시스템 ===
+
+        // 수직선(x좌표) 목록 생성
+        function getVerticalLines() {
+            const w = fieldWidth, pd = penaltyDepth;
+            const lines = [
+                { x: 0,          tag: 'endL' },
+                { x: pd,         tag: 'penL' },
+                { x: w/2,        tag: 'center' },
+                { x: w - pd,     tag: 'penR' },
+                { x: w,          tag: 'endR' },
+            ];
+            // 줄무늬 경계선 추가
+            const boundaries = calcStripeBoundaries();
+            for (const bx of boundaries) {
+                // 기존 라인과 겹치지 않으면 추가
+                if (!lines.some(l => Math.abs(l.x - bx) < 0.5)) {
+                    lines.push({ x: bx, tag: 'stripe' });
+                }
+            }
+            lines.sort((a, b) => a.x - b.x);
+            return lines;
+        }
+
+        // 수평선(y좌표) 목록 생성
+        function getHorizontalLines() {
+            const h = fieldHeight, pw = penaltyWidth, gw = goalWidth, gbw = goalboxWidth, r = centerCircleRadius;
+            const penT = (h - pw) / 2;
+            const penB = (h + pw) / 2;
+            const lines = [
+                { y: 0,                tag: 'touchT' },
+                { y: penT,             tag: 'penT' },
+                { y: (h - gbw) / 2,    tag: 'gboxT' },
+                { y: (h - gw) / 2,     tag: 'goalT' },
+                { y: (h + gw) / 2,     tag: 'goalB' },
+                { y: (h + gbw) / 2,    tag: 'gboxB' },
+                { y: penB,             tag: 'penB' },
+                { y: h,                tag: 'touchB' },
+            ];
+            const gboxT = (h - gbw) / 2;
+            const gboxB = (h + gbw) / 2;
+            // 코너~페널티박스 구간 보간 (3등분 → 내부 2점)
+            const nDiv = 3;
+            // 상단: 터치(0) → 페널티상
+            for (let i = 1; i < nDiv; i++) {
+                lines.push({ y: Math.round(penT * i / nDiv * 100) / 100, tag: 'subdiv' });
+            }
+            // 하단: 페널티하 → 터치(h)
+            for (let i = 1; i < nDiv; i++) {
+                const y = penB + (h - penB) * i / nDiv;
+                lines.push({ y: Math.round(y * 100) / 100, tag: 'subdiv' });
+            }
+            // 페널티박스~골박스 구간 보간 (중간점 1개)
+            lines.push({ y: Math.round((penT + gboxT) / 2 * 100) / 100, tag: 'subdiv' });
+            lines.push({ y: Math.round((gboxB + penB) / 2 * 100) / 100, tag: 'subdiv' });
+            lines.sort((a, b) => a.y - b.y);
+            return lines;
+        }
+
+        // 교차점 ID 생성 (좌표 기반, 기존 명명된 포인트와 호환)
+        let _fieldGridCache = null;
+
+        function buildFieldGrid() {
             const w = fieldWidth, h = fieldHeight;
-            const r = centerCircleRadius; // 센터서클 반지름
-            const gw = goalWidth; // 골대 너비
-            const pd = penaltyDepth, pw = penaltyWidth; // 페널티박스
-            
-            const coords = {
-                // 코너 (필드 네 모서리)
-                TL: {x: 0, y: 0}, TR: {x: w, y: 0}, 
-                BL: {x: 0, y: h}, BR: {x: w, y: h},
-                // 센터라인 끝 (터치라인과 만나는 점)
-                CLA: {x: w/2, y: 0}, CLB: {x: w/2, y: h},
-                // 센터서클
-                CL: {x: w/2 - r, y: h/2}, CR: {x: w/2 + r, y: h/2},
-                CT: {x: w/2, y: h/2 - r}, CB: {x: w/2, y: h/2 + r},
-                // 좌측 골대
-                GLT: {x: 0, y: (h - gw)/2}, GLB: {x: 0, y: (h + gw)/2},
-                // 우측 골대
-                GRT: {x: w, y: (h - gw)/2}, GRB: {x: w, y: (h + gw)/2},
-                // 좌측 페널티박스
-                PLT: {x: pd, y: (h - pw)/2}, PLB: {x: pd, y: (h + pw)/2},
-                PLET: {x: 0, y: (h - pw)/2}, PLEB: {x: 0, y: (h + pw)/2},
-                // 우측 페널티박스
-                PRT: {x: w - pd, y: (h - pw)/2}, PRB: {x: w - pd, y: (h + pw)/2},
-                PRET: {x: w, y: (h - pw)/2}, PREB: {x: w, y: (h + pw)/2},
-                // 사이드라인(터치라인) 중간점
-                T14: {x: w/4, y: 0}, T34: {x: w*3/4, y: 0},
-                B14: {x: w/4, y: h}, B34: {x: w*3/4, y: h},
-            };
-            if (coords[id]) return coords[id];
-            
-            // 잔디 줄무늬 동적 포인트: TS{x} = 상단, BS{x} = 하단
+            const vLines = getVerticalLines();
+            const hLines = getHorizontalLines();
+            const grid = {}; // id → {x, y, type, priority}
+
+            // 모든 교차점 생성
+            for (const vl of vLines) {
+                for (const hl of hLines) {
+                    const x = Math.round(vl.x * 100) / 100;
+                    const y = Math.round(hl.y * 100) / 100;
+
+                    // 필드 밖 제외
+                    if (x < -0.1 || x > w + 0.1 || y < -0.1 || y > h + 0.1) continue;
+
+                    const id = `IX_${x}_${y}`;
+                    let type = 'grid';
+                    let priority = 0; // 높을수록 중요
+
+                    // 타입/우선순위 결정
+                    const isEdgeX = (x < 0.1 || Math.abs(x - w) < 0.1);
+                    const isEdgeY = (y < 0.1 || Math.abs(y - h) < 0.1);
+                    const isCenterX = Math.abs(x - w/2) < 0.1;
+                    const isPenX = (Math.abs(x - penaltyDepth) < 0.1 || Math.abs(x - (w - penaltyDepth)) < 0.1);
+                    const isStripeX = vl.tag === 'stripe';
+
+                    if (isEdgeX && isEdgeY) { type = 'corner'; priority = 10; }
+                    else if (isCenterX) { type = 'centerline'; priority = 7; }
+                    else if (isEdgeX) { type = 'sideline'; priority = 5; }
+                    else if (isPenX) { type = 'penalty'; priority = 6; }
+                    else if (isStripeX && (isEdgeY)) { type = 'stripe'; priority = 2; }
+                    else if (isStripeX) { type = 'stripe_inner'; priority = 1; }
+                    else { type = 'midpoint'; priority = 3; }
+
+                    grid[id] = { x, y, type, priority, vTag: vl.tag, hTag: hl.tag };
+                }
+            }
+
+            _fieldGridCache = grid;
+            return grid;
+        }
+
+        // 기존 명명된 포인트 ↔ 그리드 ID 매핑 (하위 호환)
+        function resolvePointId(id) {
+            // IX_ 접두사 포인트는 그대로
+            if (id.startsWith('IX_')) return id;
+            // 센터서클 특수 포인트
+            if (['CL','CR','CT','CB'].includes(id)) return id;
+            // 기존 TS/BS 줄무늬 포인트 → IX 매핑
+            const tsMatch = id.match(/^TS([\d.]+)$/);
+            if (tsMatch) return `IX_${parseFloat(tsMatch[1])}_0`;
+            const bsMatch = id.match(/^BS([\d.]+)$/);
+            if (bsMatch) return `IX_${parseFloat(bsMatch[1])}_${fieldHeight}`;
+            // 기존 명명된 포인트 → 좌표로 찾기
+            return id;
+        }
+
+        function getFieldCoords(id) {
+            // 그리드 캐시 확인
+            if (!_fieldGridCache) buildFieldGrid();
+
+            // 직접 그리드에 있는 경우
+            if (_fieldGridCache[id]) return { x: _fieldGridCache[id].x, y: _fieldGridCache[id].y };
+
+            // 기존 TS/BS 포인트
             const tsMatch = id.match(/^TS([\d.]+)$/);
             if (tsMatch) return { x: parseFloat(tsMatch[1]), y: 0 };
             const bsMatch = id.match(/^BS([\d.]+)$/);
-            if (bsMatch) return { x: parseFloat(bsMatch[1]), y: h };
-            
+            if (bsMatch) return { x: parseFloat(bsMatch[1]), y: fieldHeight };
+
+            // 기존 명명된 포인트 → IX 좌표로 역매핑
+            const legacyMap = getLegacyToGridMap();
+            if (legacyMap[id] && _fieldGridCache[legacyMap[id]]) {
+                const g = _fieldGridCache[legacyMap[id]];
+                return { x: g.x, y: g.y };
+            }
+
             return null;
         }
+
+        // 기존 포인트 이름 → 그리드 ID 매핑 테이블
+        function getLegacyToGridMap() {
+            const w = fieldWidth, h = fieldHeight;
+            const pd = penaltyDepth, pw = penaltyWidth;
+            const gd = goalboxDepth, gbw = goalboxWidth, gw = goalWidth;
+            const pt = (h - pw) / 2, pb = (h + pw) / 2;
+            const gbt = (h - gbw) / 2, gbb = (h + gbw) / 2;
+            const glt = (h - gw) / 2, glb = (h + gw) / 2;
+            const fmt = (x, y) => `IX_${Math.round(x*100)/100}_${Math.round(y*100)/100}`;
+            return {
+                TL: fmt(0, 0), TR: fmt(w, 0), BL: fmt(0, h), BR: fmt(w, h),
+                CLA: fmt(w/2, 0), CLB: fmt(w/2, h), CC: fmt(w/2, h/2),
+                T14: fmt(w/4, 0), T34: fmt(w*3/4, 0), B14: fmt(w/4, h), B34: fmt(w*3/4, h),
+                PLT: fmt(pd, pt), PLB: fmt(pd, pb), PRT: fmt(w-pd, pt), PRB: fmt(w-pd, pb),
+                PLET: fmt(0, pt), PLEB: fmt(0, pb), PRET: fmt(w, pt), PREB: fmt(w, pb),
+                // 골박스 엔드라인 교차점
+                GBLT: fmt(0, gbt), GBLB: fmt(0, gbb), GBRT: fmt(w, gbt), GBRB: fmt(w, gbb),
+                // 골대 엔드라인 교차점
+                GLT: fmt(0, glt), GLB: fmt(0, glb), GRT: fmt(w, glt), GRB: fmt(w, glb),
+            };
+        }
+
+        // 그리드 캐시 무효화 (규격/줄무늬 변경 시)
+        function invalidateFieldGrid() {
+            _fieldGridCache = null;
+        }
         
-        // 포인트 ID → 한글 이름
-        const pointNames = {
-            TL: '좌상 코너', TR: '우상 코너',
-            BL: '좌하 코너', BR: '우하 코너',
-            CLA: '센터라인 상단', CLB: '센터라인 하단',
-            CL: '센터서클 좌측', CR: '센터서클 우측',
-            CT: '센터서클 상단', CB: '센터서클 하단',
-            GLT: '좌측 골대 상단', GLB: '좌측 골대 하단',
-            GRT: '우측 골대 상단', GRB: '우측 골대 하단',
-            PLT: '좌측 페널티 필드쪽 상단', PLB: '좌측 페널티 필드쪽 하단',
-            PLET: '좌측 페널티 엔드라인 상단', PLEB: '좌측 페널티 엔드라인 하단',
-            PRT: '우측 페널티 필드쪽 상단', PRB: '우측 페널티 필드쪽 하단',
-            PRET: '우측 페널티 엔드라인 상단', PREB: '우측 페널티 엔드라인 하단',
-            // 사이드라인 중간점
-            T14: '상단 터치라인 1/4', T34: '상단 터치라인 3/4',
-            B14: '하단 터치라인 1/4', B34: '하단 터치라인 3/4',
+        // 포인트 ID → 한글 이름 (동적 생성)
+        const _legacyPointNames = {
+            CL: '센터서클 좌', CR: '센터서클 우', CT: '센터서클 상', CB: '센터서클 하',
         };
+
+        function getPointName(id) {
+            if (_legacyPointNames[id]) return _legacyPointNames[id];
+            if (!id.startsWith('IX_')) return id;
+            const parts = id.split('_');
+            const x = parseFloat(parts[1]), y = parseFloat(parts[2]);
+            // 수직 위치 이름
+            const vName = x < 0.1 ? '좌엔드' :
+                          Math.abs(x - goalboxDepth) < 0.1 ? '좌골박스' :
+                          Math.abs(x - penaltyDepth) < 0.1 ? '좌페널티' :
+                          Math.abs(x - fieldWidth/2) < 0.1 ? '센터' :
+                          Math.abs(x - (fieldWidth - penaltyDepth)) < 0.1 ? '우페널티' :
+                          Math.abs(x - (fieldWidth - goalboxDepth)) < 0.1 ? '우골박스' :
+                          Math.abs(x - fieldWidth) < 0.1 ? '우엔드' :
+                          `x${x.toFixed(1)}`;
+            // 수평 위치 이름
+            const hName = y < 0.1 ? '상터치' :
+                          Math.abs(y - (fieldHeight - penaltyWidth)/2) < 0.2 ? '페널티상' :
+                          Math.abs(y - (fieldHeight - goalboxWidth)/2) < 0.3 ? '골박스상' :
+                          Math.abs(y - (fieldHeight - goalWidth)/2) < 0.2 ? '골대상' :
+                          Math.abs(y - fieldHeight/2) < 0.2 ? '중앙' :
+                          Math.abs(y - (fieldHeight + goalWidth)/2) < 0.2 ? '골대하' :
+                          Math.abs(y - (fieldHeight + goalboxWidth)/2) < 0.3 ? '골박스하' :
+                          Math.abs(y - (fieldHeight + penaltyWidth)/2) < 0.2 ? '페널티하' :
+                          Math.abs(y - fieldHeight) < 0.1 ? '하터치' :
+                          `y${y.toFixed(1)}m`;
+            return `${vName}×${hName}`;
+        }
+
+        // 하위 호환: pointNames[id] 대신 getPointName(id) 사용
+        const pointNames = new Proxy({}, { get: (_, id) => getPointName(id) });
 
         // Default parameters (will be updated based on video)
         let IMG_WIDTH = 2850;
@@ -763,9 +874,43 @@
         dropZone.addEventListener('drop', (e) => {
             e.preventDefault();
             dropZone.classList.remove('dragover');
-            const file = e.dataTransfer.files[0];
-            if (file && file.type.startsWith('video/')) {
-                loadVideo(file);
+            const files = Array.from(e.dataTransfer.files);
+            let videoFile = null, jsonFile = null, onnxFile = null;
+            for (const file of files) {
+                if (file.type.startsWith('video/') || /\.(mp4|webm|mov)$/i.test(file.name)) {
+                    videoFile = file;
+                } else if (file.name.endsWith('.json')) {
+                    jsonFile = file;
+                } else if (file.name.endsWith('.onnx')) {
+                    onnxFile = file;
+                }
+            }
+            // ONNX 모델 로드
+            if (onnxFile) {
+                const reader = new FileReader();
+                reader.onload = async (ev) => {
+                    await loadYoloModel(ev.target.result, onnxFile.name);
+                };
+                reader.readAsArrayBuffer(onnxFile);
+            }
+            // JSON 캘리브레이션 처리
+            if (jsonFile) {
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    pendingCalibData = ev.target.result;
+                    document.getElementById('calib-file-name').textContent = '✓ ' + jsonFile.name;
+                    document.getElementById('calib-file-name').style.display = 'block';
+                    // 비디오 없이 JSON만 드롭했고 이미 비디오 로드 상태면 바로 적용
+                    if (!videoFile && video) {
+                        loadCalibration(pendingCalibData);
+                        pendingCalibData = null;
+                    }
+                };
+                reader.readAsText(jsonFile);
+            }
+            // 비디오 처리
+            if (videoFile) {
+                loadVideo(videoFile);
             }
         });
         
@@ -792,7 +937,40 @@
                 reader.readAsText(file);
             }
         });
-        
+
+        // ONNX 모델 파일 불러오기
+        const onnxInput = document.getElementById('onnx-input');
+        document.getElementById('load-onnx-btn').addEventListener('click', () => onnxInput.click());
+
+        onnxInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file && file.name.endsWith('.onnx')) {
+                const reader = new FileReader();
+                reader.onload = async (ev) => {
+                    await loadYoloModel(ev.target.result, file.name);
+                    document.getElementById('onnx-file-name').textContent = '✓ ' + file.name;
+                    document.getElementById('onnx-file-name').style.display = 'block';
+                };
+                reader.readAsArrayBuffer(file);
+            }
+        });
+
+        // 페이지 로드 시 로컬 ONNX 모델 자동 로드
+        (async function autoLoadYolo() {
+            const modelPath = '../asset/yolo26n.onnx';
+            try {
+                const resp = await fetch(modelPath);
+                if (resp.ok) {
+                    const buf = await resp.arrayBuffer();
+                    await loadYoloModel(buf, 'yolo26n.onnx');
+                    document.getElementById('onnx-file-name').textContent = '✓ yolo26n.onnx (자동 로드)';
+                    document.getElementById('onnx-file-name').style.display = 'block';
+                }
+            } catch (e) {
+                console.log('YOLO 자동 로드 실패 (수동 로드 가능):', e.message);
+            }
+        })();
+
         function loadVideo(file) {
             currentVideoFileName = file.name;
             filePanel.style.display = 'none';
@@ -898,6 +1076,13 @@
                 const time = (e.target.value / 100) * video.duration;
                 video.currentTime = time;
             });
+            // range 클릭 시 해당 위치로 바로 점프 (기본 동작은 드래그만 지원하는 브라우저 대응)
+            progress.addEventListener('mousedown', (e) => {
+                const rect = progress.getBoundingClientRect();
+                const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                progress.value = ratio * 100;
+                video.currentTime = ratio * video.duration;
+            });
             
             speedSelect.addEventListener('change', (e) => {
                 video.playbackRate = parseFloat(e.target.value);
@@ -954,7 +1139,7 @@
                 }
                 // G 키: 격자 토글
                 if (e.code === 'KeyG' && !isCalibrationMode) {
-                    const hasCorners = calibrationPoints.TL && calibrationPoints.TR && calibrationPoints.BL && calibrationPoints.BR;
+                    const hasCorners = hasCornerPoints();
                     if (hasCorners) {
                         e.preventDefault();
                         showGrid = !showGrid;
@@ -1014,12 +1199,13 @@
             
             // 잔디 줄무늬 적용
             document.getElementById('apply-stripe-btn').addEventListener('click', () => {
-                stripeInterval = parseInt(document.getElementById('stripe-count').value) || 20;
+                stripeInterval = parseInt(document.getElementById('stripe-count').value) || 24;
                 stripeEndType = document.getElementById('stripe-end-type').value;
                 activeQuadrant = null;
                 generateStripePoints();
+                renderMinimapStripes();
                 updateCalibCount();
-                showToast(`🌿 줄무늬 갱신 (${stripeInterval}줄, 끝 ${stripeEndType === 'full' ? '전체' : '반'}칸)`);
+                showToast(`🌿 줄무늬 갱신 (${stripeInterval}칸, 끝 ${stripeEndType === 'full' ? '전체' : '반'}칸)`);
             });
 
             // 4분면 토글 버튼
@@ -1046,7 +1232,7 @@
                 goalboxWidth = parseFloat(document.getElementById('goalbox-width').value) || 18.32;
                 
                 const count = Object.keys(calibrationPoints).length;
-                const hasCorners = calibrationPoints.TL && calibrationPoints.TR && calibrationPoints.BL && calibrationPoints.BR;
+                const hasCorners = hasCornerPoints();
                 
                 if (!hasCorners) {
                     showToast('⚠️ 코너 4개는 필수입니다 (A좌, A우, B좌, B우)');
@@ -1059,6 +1245,7 @@
                 document.getElementById('grid-toggle-btn').classList.add('active');
                 document.getElementById('tactics-btn').style.display = 'block';
                 toggleCalibrationMode();
+                refreshMinimap(); // 규격 변경 반영
                 redrawFieldGrid();
                 
                 if (extraCount > 0) {
@@ -1101,46 +1288,37 @@
             document.getElementById('tactics-close-btn').addEventListener('click', toggleTacticsMode);
             document.getElementById('tactics-clear-btn').addEventListener('click', clearTacticsPoints);
             document.getElementById('tactics-undo-btn').addEventListener('click', undoTacticsPoint);
+            document.getElementById('tracker-toggle-btn').addEventListener('click', toggleTracking);
             
-            // 전술 색상 선택 버튼
+            // 전술 팀 선택 버튼
             document.querySelectorAll('.tactics-color-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
                     document.querySelectorAll('.tactics-color-btn').forEach(b => b.classList.remove('active'));
                     btn.classList.add('active');
-                    currentTacticsColor = btn.dataset.color;
+                    currentTacticsTeam = btn.dataset.team;
                 });
+            });
+            // 팀 컬러 피커
+            const homeColorInput = document.getElementById('team-home-color');
+            const awayColorInput = document.getElementById('team-away-color');
+            const homeBtnEl = document.querySelector('[data-team="home"]');
+            const awayBtnEl = document.querySelector('[data-team="away"]');
+            homeColorInput.addEventListener('input', (e) => {
+                teamColors.home = e.target.value;
+                homeBtnEl.style.background = teamColors.home;
+                tacticsPoints.forEach(p => { if (p.team === 'home') p.color = teamColors.home; });
+                updateTacticsMinimap();
+            });
+            awayColorInput.addEventListener('input', (e) => {
+                teamColors.away = e.target.value;
+                awayBtnEl.style.background = teamColors.away;
+                tacticsPoints.forEach(p => { if (p.team === 'away') p.color = teamColors.away; });
+                updateTacticsMinimap();
             });
             
             // 캘리브레이션 포인트 버튼 이벤트 (미니맵)
-            document.querySelectorAll('.map-point').forEach(p => {
-                p.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    const id = p.dataset.id;
-                    
-                    // 이미 등록된 포인트면 삭제
-                    if (calibrationPoints[id]) {
-                        deleteCalibPoint(id);
-                    } else {
-                        // 등록되지 않은 포인트면 선택
-                        selectCalibPoint(id);
-                    }
-                });
-                
-                // 우클릭으로 삭제
-                p.addEventListener('contextmenu', (e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    const id = p.dataset.id;
-                    if (calibrationPoints[id]) {
-                        deleteCalibPoint(id);
-                    }
-                });
-            });
-            
-            // 기존 버튼 방식도 지원
-            document.querySelectorAll('.calib-point').forEach(p => {
-                p.addEventListener('click', () => selectCalibPoint(p.dataset.id));
-            });
+            // 미니맵 동적 렌더링 (필드 라인 + 줄무늬 + 포인트 + 이벤트)
+            refreshMinimap();
             
             // Mode buttons
             document.querySelectorAll('[data-mode]').forEach(btn => {
@@ -1244,18 +1422,32 @@
         let smoothTarget = null; // { lon, lat } — 클릭 시 부드러운 이동 목표
         const SMOOTH_LERP = 0.08; // 보간 속도 (0~1, 클수록 빠름)
 
+        // UI 패널 위 클릭인지 판별
+        function isClickOnUI(event) {
+            const el = event.target;
+            if (el.closest('#video-controls') || el.closest('#controls') || el.closest('#mode-panel') ||
+                el.closest('#calibration-panel') || el.closest('#tactics-panel') || el.closest('#info') ||
+                el.closest('#file-panel') || el.tagName === 'INPUT' || el.tagName === 'SELECT' || el.tagName === 'BUTTON') {
+                return true;
+            }
+            return false;
+        }
+
         function onPointerDown(event) {
+            // UI 패널 위 클릭은 무시
+            if (isClickOnUI(event)) return;
+
             // 캘리브레이션 모드에서 포인트 등록
             if (isCalibrationMode && currentCalibPointId) {
                 addCalibrationPoint(event.clientX, event.clientY);
                 return;
             }
-            
+
             // 항상 pointerDown 좌표 저장 (전술 모드 클릭 판정에도 필요)
             onPointerDownMouseX = event.clientX;
             onPointerDownMouseY = event.clientY;
-            
-            // 전술 모드: 드래그 없이 pointerUp에서 클릭 처리
+
+            // 전술 모드: 드래그 없이 pointerUp에서 클릭 처리 (YOLO 트래킹 중에도 수동 추가 가능)
             if (isTacticsMode) {
                 return;
             }
@@ -1280,7 +1472,7 @@
             } else {
                 calibCursor.style.display = 'none';
             }
-            
+
             if (isUserInteracting) {
                 const dx = event.clientX - prevPointerX;
                 const dy = event.clientY - prevPointerY;
@@ -1298,11 +1490,14 @@
         function onPointerUp(event) {
             isUserInteracting = false;
 
+            // UI 패널 위 클릭은 무시
+            if (isClickOnUI(event)) return;
+
             // 클릭 판정: 드래그 거리가 5px 이하면 클릭으로 간주
             const dx = event.clientX - onPointerDownMouseX;
             const dy = event.clientY - onPointerDownMouseY;
             if (Math.sqrt(dx * dx + dy * dy) < 5) {
-                // 전술 모드: 포인트 추가 (시점 이동 없음)
+                // 전술 모드: 포인트 추가 (YOLO 트래킹 중에도 수동 추가 가능)
                 if (isTacticsMode) {
                     addTacticsPoint(event.clientX, event.clientY);
                     return;
@@ -1444,8 +1639,16 @@
             camera.lookAt(x, y, z);
             renderer.render(scene, camera);
             
-            // 키포인트(점)만 매 프레임 재투영 (시점 따라 이동)
+            // 필드 라인 + 키포인트 매 프레임 재투영
+            updateFieldLinesOverlay();
             updateCalibOverlay();
+            // YOLO 트래커: 5프레임마다 비동기 추론 (재생 중만)
+            if (isTracking && yoloSession && !_yoloRunning && !video.paused && _trackFrame++ % 5 === 0) {
+                _yoloRunning = true;
+                updateYoloTrackers().finally(() => { _yoloRunning = false; });
+            }
+            // bbox 오버레이는 매 프레임 항상 갱신 (카메라 이동에 따라)
+            if (isTracking && trackers.length > 0) renderTrackerBboxOverlay();
         }
         
         // ============ 캘리브레이션 패널 드래그 ============
@@ -1579,18 +1782,131 @@
         }
         
         function redrawFieldGrid() { /* 선 시각화 제거됨 */ }
-        
+
+        // ============ 필드 라인 오버레이 (UV-TPS 기반, 시점 독립) ============
+        function updateFieldLinesOverlay() {
+            const layer = document.getElementById('field-lines-layer');
+            if (!layer) return;
+            layer.innerHTML = '';
+
+            if (!showGrid) return;
+            if (!hasCornerPoints()) return;
+
+            const svgNS = 'http://www.w3.org/2000/svg';
+            const w = fieldWidth, h = fieldHeight;
+
+            // 필드 좌표 배열 → 화면 좌표 SVG polyline
+            function projectLine(fieldPts, color = 'rgba(255,255,255,0.6)', sw = 1.5) {
+                const screenPts = [];
+                for (const [fx, fy] of fieldPts) {
+                    const s = fieldToScreen(fx, fy);
+                    if (s) screenPts.push(s);
+                }
+                if (screenPts.length < 2) return;
+                const el = document.createElementNS(svgNS, 'polyline');
+                el.setAttribute('points', screenPts.map(p => `${p.x},${p.y}`).join(' '));
+                el.setAttribute('fill', 'none');
+                el.setAttribute('stroke', color);
+                el.setAttribute('stroke-width', sw);
+                el.setAttribute('stroke-linejoin', 'round');
+                layer.appendChild(el);
+            }
+
+            // 직선: 시작→끝을 N등분 샘플링 (TPS 왜곡 반영)
+            function linePts(x1, y1, x2, y2, n = 20) {
+                const pts = [];
+                for (let i = 0; i <= n; i++) {
+                    const t = i / n;
+                    pts.push([x1 + (x2 - x1) * t, y1 + (y2 - y1) * t]);
+                }
+                return pts;
+            }
+
+            // 원호: 중심, 반지름, 시작/끝 각도(도)
+            function arcPts(cx, cy, r, startDeg, endDeg, n = 30) {
+                const pts = [];
+                for (let i = 0; i <= n; i++) {
+                    const a = (startDeg + (endDeg - startDeg) * i / n) * Math.PI / 180;
+                    pts.push([cx + Math.cos(a) * r, cy + Math.sin(a) * r]);
+                }
+                return pts;
+            }
+
+            const lc = 'rgba(255,255,255,0.55)';
+            const lw = 1.5;
+
+            // 1. 외곽선
+            projectLine(linePts(0, 0, w, 0), lc, lw);      // 상단
+            projectLine(linePts(w, 0, w, h), lc, lw);      // 우측
+            projectLine(linePts(w, h, 0, h), lc, lw);      // 하단
+            projectLine(linePts(0, h, 0, 0), lc, lw);      // 좌측
+
+            // 2. 센터라인
+            projectLine(linePts(w/2, 0, w/2, h, 30), lc, lw);
+
+            // 3. 페널티박스
+            const pt = (h - penaltyWidth) / 2;
+            const pb = (h + penaltyWidth) / 2;
+            const pd = penaltyDepth;
+            // 좌측
+            projectLine(linePts(0, pt, pd, pt), lc, lw);
+            projectLine(linePts(pd, pt, pd, pb), lc, lw);
+            projectLine(linePts(pd, pb, 0, pb), lc, lw);
+            // 우측
+            projectLine(linePts(w, pt, w - pd, pt), lc, lw);
+            projectLine(linePts(w - pd, pt, w - pd, pb), lc, lw);
+            projectLine(linePts(w - pd, pb, w, pb), lc, lw);
+
+            // 6. 골박스
+            const gbt = (h - goalboxWidth) / 2;
+            const gbb = (h + goalboxWidth) / 2;
+            const gd = goalboxDepth;
+            // 좌측
+            projectLine(linePts(0, gbt, gd, gbt), lc, lw);
+            projectLine(linePts(gd, gbt, gd, gbb), lc, lw);
+            projectLine(linePts(gd, gbb, 0, gbb), lc, lw);
+            // 우측
+            projectLine(linePts(w, gbt, w - gd, gbt), lc, lw);
+            projectLine(linePts(w - gd, gbt, w - gd, gbb), lc, lw);
+            projectLine(linePts(w - gd, gbb, w, gbb), lc, lw);
+
+            // 7. 골대
+            const glt = (h - goalWidth) / 2;
+            const glb = (h + goalWidth) / 2;
+            projectLine(linePts(0, glt, 0, glb), '#facc15', 2);
+            projectLine(linePts(w, glt, w, glb), '#facc15', 2);
+
+            // 8. 페널티스팟
+            projectLine(arcPts(11, h/2, 0.3, 0, 360, 12), 'rgba(255,255,255,0.6)', 2);
+            projectLine(arcPts(w - 11, h/2, 0.3, 0, 360, 12), 'rgba(255,255,255,0.6)', 2);
+
+            // 9. 페널티아크 (박스 밖 부분만)
+            const arcR = 9.15;
+            const arcAngle = Math.acos(pd / arcR) * 180 / Math.PI;
+            // 좌측: 우측으로 열린 아크
+            projectLine(arcPts(11, h/2, arcR, -arcAngle, arcAngle, 20), lc, lw);
+            // 우측: 좌측으로 열린 아크
+            projectLine(arcPts(w - 11, h/2, arcR, 180 - arcAngle, 180 + arcAngle, 20), lc, lw);
+
+            // 10. 코너아크
+            const cr = 1;
+            projectLine(arcPts(0, 0, cr, 0, 90, 8), lc, lw);
+            projectLine(arcPts(w, 0, cr, 90, 180, 8), lc, lw);
+            projectLine(arcPts(w, h, cr, 180, 270, 8), lc, lw);
+            projectLine(arcPts(0, h, cr, 270, 360, 8), lc, lw);
+        }
+
         // 매 프레임: 점(키포인트)만 재투영하여 갱신
         function updateCalibOverlay() {
             const pointsLayer = document.getElementById('calib-points-layer');
             if (!pointsLayer) return;
             pointsLayer.innerHTML = '';
             
-            // showGrid가 꺼져있으면 키포인트도 숨김
-            if (!showGrid) return;
+            // showGrid가 꺼져있고 캘리브레이션 모드도 아니면 키포인트 숨김
+            if (!showGrid && !isCalibrationMode) return;
             
             // 캘리브레이션 포인트 표시
-            const colors = { corner: '#ef4444', center: '#3b82f6', centerline: '#22c55e', goal: '#facc15', penalty: '#a855f7', sideline: '#f97316', stripe: '#fb923c' };
+            const colors = { corner: '#ef4444', center: '#3b82f6', centerline: '#22c55e', goal: '#facc15', penalty: '#a855f7', sideline: '#f97316', stripe: '#fb923c', midpoint: '#06b6d4' };
             
             for (const [id, data] of Object.entries(calibrationPoints)) {
                 // UV 기반으로 현재 메쉬 위 위치를 구함
@@ -1598,40 +1914,35 @@
                 if (!pos) continue;
                 
                 const type = /^(TS|BS)[\d.]+$/.test(id) ? 'stripe' :
-                             id.startsWith('G') ? 'goal' : id.startsWith('P') ? 'penalty' : 
-                             id.startsWith('CL') && id.length === 3 ? 'centerline' :
-                             id.startsWith('C') ? 'center' : 
+                             id.startsWith('MP') ? 'midpoint' :
+                             id.startsWith('G') ? 'goal' : id.startsWith('P') ? 'penalty' :
+                             id.startsWith('CL') && id !== 'CLA' && id !== 'CLB' ? 'centerline' :
+                             id.startsWith('C') ? 'center' :
                              ['T14', 'T34', 'B14', 'B34'].includes(id) ? 'sideline' :
                              'corner';
                 const c = colors[type];
                 
                 const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
                 g.setAttribute('transform', `translate(${pos.x},${pos.y})`);
-                
-                // 외곽 원
-                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-                circle.setAttribute('r', '12');
-                circle.setAttribute('fill', 'none');
-                circle.setAttribute('stroke', c);
-                circle.setAttribute('stroke-width', '3');
-                g.appendChild(circle);
-                
-                // 중앙 점
+
+                // 원
                 const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-                dot.setAttribute('r', '4');
+                dot.setAttribute('r', '5');
                 dot.setAttribute('fill', c);
+                dot.setAttribute('opacity', '0.85');
+                dot.setAttribute('stroke', '#fff');
+                dot.setAttribute('stroke-width', '1');
                 g.appendChild(dot);
-                
+
                 // 라벨
                 const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                text.setAttribute('y', '-18');
+                text.setAttribute('y', '-9');
                 text.setAttribute('text-anchor', 'middle');
                 text.setAttribute('fill', c);
-                text.setAttribute('font-size', '11');
-                text.setAttribute('font-weight', 'bold');
+                text.setAttribute('font-size', '8');
                 text.textContent = id;
                 g.appendChild(text);
-                
+
                 pointsLayer.appendChild(g);
             }
         }
@@ -1658,8 +1969,90 @@
         
         // ============ Thin Plate Spline (TPS) 변환 ============
         
-        let tpsCache = null; // TPS 계산 결과 캐시
+        let tpsCache = null; // TPS 계산 결과 캐시 (레거시, fieldToScreenHomography 폴백용)
+
+        // === UV-space TPS 캐시 (카메라 독립적) ===
+        let uvTPS = {
+            fieldToUV: null,   // field coords → UV coords TPS
+            uvToField: null,   // UV coords → field coords TPS
+            valid: false
+        };
         
+        // === 정규화된 TPS 계산/적용 (수치 안정성 개선) ===
+
+        function computeNormStats(points) {
+            const n = points.length;
+            let mx = 0, my = 0;
+            for (const p of points) { mx += p[0]; my += p[1]; }
+            mx /= n; my /= n;
+            let sx = 0, sy = 0;
+            for (const p of points) { sx += (p[0] - mx) ** 2; sy += (p[1] - my) ** 2; }
+            sx = Math.sqrt(sx / n) || 1;
+            sy = Math.sqrt(sy / n) || 1;
+            return { mx, my, sx, sy };
+        }
+
+        function normalizePoints(points, stats) {
+            return points.map(p => [(p[0] - stats.mx) / stats.sx, (p[1] - stats.my) / stats.sy]);
+        }
+
+        // 정규화된 TPS를 계산하고, 적용 시 역정규화까지 포함하는 래퍼
+        function computeNormalizedTPS(srcPoints, dstPoints) {
+            const srcStats = computeNormStats(srcPoints);
+            const dstStats = computeNormStats(dstPoints);
+            const srcNorm = normalizePoints(srcPoints, srcStats);
+            const dstNorm = normalizePoints(dstPoints, dstStats);
+            const tps = computeTPS(srcNorm, dstNorm);
+            if (!tps) return null;
+            return { tps, srcStats, dstStats };
+        }
+
+        function applyNormalizedTPS(ntps, x, y) {
+            if (!ntps) return null;
+            const { tps, srcStats, dstStats } = ntps;
+            // 입력을 src 정규화 공간으로
+            const nx = (x - srcStats.mx) / srcStats.sx;
+            const ny = (y - srcStats.my) / srcStats.sy;
+            const result = applyTPS(tps, nx, ny);
+            if (!result) return null;
+            // 출력을 dst 역정규화
+            return {
+                x: result.x * dstStats.sx + dstStats.mx,
+                y: result.y * dstStats.sy + dstStats.my
+            };
+        }
+
+        // calibration 변경 시 UV-space TPS 쌍 재계산
+        function rebuildUVTPS() {
+            uvTPS.valid = false;
+            uvTPS.fieldToUV = null;
+            uvTPS.uvToField = null;
+
+            const fieldPts = [];
+            const uvPts = [];
+
+            for (const [id, data] of Object.entries(calibrationPoints)) {
+                if (id.startsWith('_') && id.endsWith('_est')) continue; // 추정 포인트 스킵
+                if (!data.uv) continue;
+
+                let fieldCoord = getFieldCoords(id);
+                if (!fieldCoord) continue;
+
+                fieldPts.push([fieldCoord.x, fieldCoord.y]);
+                uvPts.push([data.uv.u, data.uv.v]);
+            }
+
+            if (fieldPts.length < 4) return;
+
+            uvTPS.fieldToUV = computeNormalizedTPS(fieldPts, uvPts);
+            uvTPS.uvToField = computeNormalizedTPS(uvPts, fieldPts);
+            uvTPS.valid = !!(uvTPS.fieldToUV && uvTPS.uvToField);
+
+            if (uvTPS.valid) {
+                console.log(`UV-TPS rebuilt: ${fieldPts.length} points`);
+            }
+        }
+
         // TPS 기저 함수: U(r) = r² * log(r)
         function tpsKernel(r) {
             if (r < 1e-10) return 0;
@@ -1894,48 +2287,49 @@
             console.log('센터서클 포인트 자동 추정 완료');
         }
         
-        // 필드 좌표 → 화면 좌표 변환 (개선된 TPS 기반)
+        // 필드 좌표 → 화면 좌표 변환 (UV-space TPS 기반, 카메라 독립적)
         function fieldToScreen(fx, fy) {
+            // UV-space TPS가 유효하면 사용: field → UV → screen
+            if (uvTPS.valid && uvTPS.fieldToUV) {
+                const uvResult = applyNormalizedTPS(uvTPS.fieldToUV, fx, fy);
+                if (uvResult) {
+                    const screenPos = uvToScreen({ u: uvResult.x, v: uvResult.y }, true);
+                    if (screenPos) return screenPos;
+                }
+            }
+
+            // 폴백: 기존 screen-space TPS 방식
             if (!calibrationPoints.TL || !calibrationPoints.TR || !calibrationPoints.BL || !calibrationPoints.BR) return null;
-            
-            const w = fieldWidth, h = fieldHeight;
-            
+
             // 센터서클 포인트 자동 추정 (필요시)
             if (calibrationPoints.CLA && calibrationPoints.CLB) {
                 estimateCenterCirclePoints();
             }
-            
-            // 모든 캘리브레이션 포인트 수집 (추정 포인트 포함)
+
             const srcPoints = [];
             const dstPoints = [];
-            
+
             for (const [id, data] of Object.entries(calibrationPoints)) {
                 let fieldCoord;
-                
-                // 추정된 포인트
                 if (id.startsWith('_') && id.endsWith('_est')) {
-                    const realId = id.slice(1, -4); // _CL_est -> CL
+                    const realId = id.slice(1, -4);
                     fieldCoord = getFieldCoords(realId);
                 } else {
                     fieldCoord = getFieldCoords(id);
                 }
-                
                 if (!fieldCoord) continue;
-                
+
                 const screenCoord = worldToScreen(data.world3D, true);
                 if (!screenCoord) continue;
-                
+
                 srcPoints.push([fieldCoord.x, fieldCoord.y]);
                 dstPoints.push([screenCoord.x, screenCoord.y]);
             }
-            
-            // 최소 4개 포인트 필요
+
             if (srcPoints.length < 4) {
-                // 폴백: 기존 Homography 방식
                 return fieldToScreenHomography(fx, fy);
             }
-            
-            // TPS 계산 (캐시 무효화 체크)
+
             const cacheKey = JSON.stringify(srcPoints) + JSON.stringify(dstPoints);
             if (!tpsCache || tpsCache.key !== cacheKey) {
                 tpsCache = {
@@ -1943,40 +2337,15 @@
                     tps: computeTPS(srcPoints, dstPoints)
                 };
             }
-            
+
             if (!tpsCache.tps) {
                 return fieldToScreenHomography(fx, fy);
             }
-            
-            // TPS 적용
-            const result = applyTPS(tpsCache.tps, fx, fy);
-            
-            // 파노라마 곡률 추가 보정
-            if (result) {
-                const curvatureCorrection = computePanoramaCurvature(fx, fy, w, h);
-                result.x += curvatureCorrection.dx;
-                result.y += curvatureCorrection.dy;
-            }
-            
-            return result;
+
+            return applyTPS(tpsCache.tps, fx, fy);
         }
         
-        // 파노라마 곡률 보정 계산
-        function computePanoramaCurvature(fx, fy, w, h) {
-            // 필드 중앙에서의 거리
-            const cx = w / 2, cy = h / 2;
-            const dx = (fx - cx) / cx; // -1 ~ 1
-            const dy = (fy - cy) / cy; // -1 ~ 1
-            
-            // 파노라마 원통 투영에서는 수평 방향으로 곡률 발생
-            // 중앙에서 멀어질수록 더 많이 휘어짐
-            const curveFactor = 0.02; // 곡률 강도 (조정 가능)
-            
-            return {
-                dx: -curveFactor * dx * dy * 50, // 수평 보정
-                dy: curveFactor * dx * dx * 20   // 수직 보정 (배럴 왜곡 유사)
-            };
-        }
+        // computePanoramaCurvature 제거됨 — UV-space TPS가 calibration point 분포를 통해 곡률을 자연스럽게 모델링
         
         // 폴백용 Homography 방식 (기존 방식)
         function fieldToScreenHomography(fx, fy) {
@@ -2007,12 +2376,15 @@
         // TPS 캐시 무효화 (캘리브레이션 변경 시 호출)
         function invalidateTPSCache() {
             tpsCache = null;
+            invalidateFieldGrid(); // 그리드 캐시도 무효화
             // 추정 포인트 제거
             for (const key of Object.keys(calibrationPoints)) {
                 if (key.startsWith('_') && key.endsWith('_est')) {
                     delete calibrationPoints[key];
                 }
             }
+            // UV-space TPS 재계산
+            rebuildUVTPS();
         }
         
         // 필드 좌표 → 3D 좌표 변환 (기존 유지, 마커용)
@@ -2311,10 +2683,11 @@
             const infoEl = document.getElementById('selected-point-info');
             const name = pointNames[id] || (/^TS([\d.]+)$/.test(id) ? `상단 ${id.slice(2)}m` : /^BS([\d.]+)$/.test(id) ? `하단 ${id.slice(2)}m` : id);
             const color = /^(TS|BS)[\d.]+$/.test(id) ? '#fb923c' :
-                         id.startsWith('G') ? '#facc15' : 
-                         id.startsWith('P') ? '#a855f7' : 
-                         id.startsWith('CL') && id.length === 3 ? '#22c55e' :
-                         id.startsWith('C') ? '#3b82f6' : 
+                         id.startsWith('MP') ? '#06b6d4' :
+                         id.startsWith('G') ? '#facc15' :
+                         id.startsWith('P') ? '#a855f7' :
+                         id.startsWith('CL') && id !== 'CLA' && id !== 'CLB' ? '#22c55e' :
+                         id.startsWith('C') ? '#3b82f6' :
                          ['T14', 'T34', 'B14', 'B34'].includes(id) ? '#f97316' :
                          '#ef4444';
             infoEl.innerHTML = `<span style="color: ${color}; font-weight: bold;">● ${name}</span> 을(를) 화면에서 클릭하세요`;
@@ -2370,6 +2743,9 @@
             TL: {x: 25, y: 10}, TR: {x: 195, y: 10},
             BL: {x: 25, y: 130}, BR: {x: 195, y: 130},
             CLA: {x: 110, y: 10}, CLB: {x: 110, y: 130},
+            CL14: {x: 110, y: 40}, CL34: {x: 110, y: 100},
+            MPLT: {x: 72, y: 40}, MPRT: {x: 148, y: 40},
+            MPLB: {x: 72, y: 100}, MPRB: {x: 148, y: 100},
             CL: {x: 92, y: 70}, CR: {x: 128, y: 70},
             CT: {x: 110, y: 52}, CB: {x: 110, y: 88},
             GLT: {x: 25, y: 55}, GLB: {x: 25, y: 85},
@@ -2390,9 +2766,357 @@
             };
         }
         
-        // 미니맵 좌표 얻기 (고정 + 동적 줄무늬)
+        // === 미니맵 필드 라인 + 줄무늬 + 포인트 동적 렌더링 ===
+
+        function renderMinimapFieldLines() {
+            const g = document.getElementById('minimap-field-lines');
+            if (!g) return;
+            g.innerHTML = '';
+
+            const w = fieldWidth, h = fieldHeight;
+            const m = fieldToMinimap;
+            const svgNS = 'http://www.w3.org/2000/svg';
+            const lc = 'rgba(255,255,255,0.35)';
+            const lw = 1;
+
+            function line(x1, y1, x2, y2, color = lc, sw = lw) {
+                const el = document.createElementNS(svgNS, 'line');
+                const p1 = m(x1, y1), p2 = m(x2, y2);
+                el.setAttribute('x1', p1.x); el.setAttribute('y1', p1.y);
+                el.setAttribute('x2', p2.x); el.setAttribute('y2', p2.y);
+                el.setAttribute('stroke', color); el.setAttribute('stroke-width', sw);
+                g.appendChild(el);
+            }
+            function rect(x, y, rw, rh, color = lc, sw = lw) {
+                const el = document.createElementNS(svgNS, 'rect');
+                const p = m(x, y), p2 = m(x + rw, y + rh);
+                el.setAttribute('x', p.x); el.setAttribute('y', p.y);
+                el.setAttribute('width', p2.x - p.x); el.setAttribute('height', p2.y - p.y);
+                el.setAttribute('fill', 'none'); el.setAttribute('stroke', color); el.setAttribute('stroke-width', sw);
+                g.appendChild(el);
+            }
+            function circle(cx, cy, r, color = lc, sw = lw) {
+                const el = document.createElementNS(svgNS, 'circle');
+                const p = m(cx, cy);
+                const pr = m(cx + r, cy);
+                el.setAttribute('cx', p.x); el.setAttribute('cy', p.y);
+                el.setAttribute('r', Math.abs(pr.x - p.x));
+                el.setAttribute('fill', 'none'); el.setAttribute('stroke', color); el.setAttribute('stroke-width', sw);
+                g.appendChild(el);
+            }
+            function arc(cx, cy, r, startDeg, endDeg, color = lc, sw = lw) {
+                const el = document.createElementNS(svgNS, 'path');
+                const steps = 24;
+                const pts = [];
+                for (let i = 0; i <= steps; i++) {
+                    const a = (startDeg + (endDeg - startDeg) * i / steps) * Math.PI / 180;
+                    pts.push(m(cx + Math.cos(a) * r, cy + Math.sin(a) * r));
+                }
+                const d = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ');
+                el.setAttribute('d', d);
+                el.setAttribute('fill', 'none'); el.setAttribute('stroke', color); el.setAttribute('stroke-width', sw);
+                g.appendChild(el);
+            }
+
+            // 외곽선
+            rect(0, 0, w, h, 'rgba(255,255,255,0.5)', 1.5);
+            // 센터라인
+            line(w/2, 0, w/2, h, 'rgba(255,255,255,0.3)');
+            // 센터서클
+            circle(w/2, h/2, centerCircleRadius, 'rgba(255,255,255,0.3)');
+            // 센터스팟
+            circle(w/2, h/2, 0.3, 'rgba(255,255,255,0.5)', 2);
+            // 페널티박스
+            const pt = (h - penaltyWidth) / 2;
+            rect(0, pt, penaltyDepth, penaltyWidth, 'rgba(255,255,255,0.25)');
+            rect(w - penaltyDepth, pt, penaltyDepth, penaltyWidth, 'rgba(255,255,255,0.25)');
+            // 골박스
+            const gt = (h - goalboxWidth) / 2;
+            rect(0, gt, goalboxDepth, goalboxWidth, 'rgba(255,255,255,0.2)');
+            rect(w - goalboxDepth, gt, goalboxDepth, goalboxWidth, 'rgba(255,255,255,0.2)');
+            // 골대
+            const glt = (h - goalWidth) / 2;
+            line(0, glt, 0, glt + goalWidth, '#facc15', 2);
+            line(w, glt, w, glt + goalWidth, '#facc15', 2);
+            // 페널티스팟
+            circle(11, h/2, 0.3, 'rgba(255,255,255,0.4)', 2);
+            circle(w - 11, h/2, 0.3, 'rgba(255,255,255,0.4)', 2);
+            // 페널티아크
+            const arcR = 9.15;
+            const leftArcStart = -Math.acos(penaltyDepth / arcR) * 180 / Math.PI;
+            arc(11, h/2, arcR, leftArcStart, -leftArcStart, 'rgba(255,255,255,0.2)');
+            arc(w - 11, h/2, arcR, 180 + leftArcStart, 180 - leftArcStart, 'rgba(255,255,255,0.2)');
+            // 코너아크
+            const cr = 1;
+            arc(0, 0, cr, 0, 90, 'rgba(255,255,255,0.2)');
+            arc(w, 0, cr, 90, 180, 'rgba(255,255,255,0.2)');
+            arc(w, h, cr, 180, 270, 'rgba(255,255,255,0.2)');
+            arc(0, h, cr, 270, 360, 'rgba(255,255,255,0.2)');
+        }
+
+        // === 전술 미니맵 필드 라인 + 줄무늬 렌더링 ===
+
+        function fieldToTacticsMinimap(fx, fy) {
+            return { x: 20 + (fx / fieldWidth) * 180, y: 5 + (fy / fieldHeight) * 135 };
+        }
+
+        function renderTacticsFieldLines() {
+            const g = document.getElementById('tactics-field-lines');
+            if (!g) return;
+            g.innerHTML = '';
+
+            const w = fieldWidth, h = fieldHeight;
+            const m = fieldToTacticsMinimap;
+            const svgNS = 'http://www.w3.org/2000/svg';
+
+            function line(x1, y1, x2, y2, color = 'rgba(255,255,255,0.7)', sw = 1) {
+                const el = document.createElementNS(svgNS, 'line');
+                const p1 = m(x1, y1), p2 = m(x2, y2);
+                el.setAttribute('x1', p1.x); el.setAttribute('y1', p1.y);
+                el.setAttribute('x2', p2.x); el.setAttribute('y2', p2.y);
+                el.setAttribute('stroke', color); el.setAttribute('stroke-width', sw);
+                g.appendChild(el);
+            }
+            function rect(x, y, rw, rh, color = 'rgba(255,255,255,0.7)', sw = 1) {
+                const el = document.createElementNS(svgNS, 'rect');
+                const p = m(x, y), p2 = m(x + rw, y + rh);
+                el.setAttribute('x', p.x); el.setAttribute('y', p.y);
+                el.setAttribute('width', p2.x - p.x); el.setAttribute('height', p2.y - p.y);
+                el.setAttribute('fill', 'none'); el.setAttribute('stroke', color); el.setAttribute('stroke-width', sw);
+                g.appendChild(el);
+            }
+            function circle(cx, cy, r, color = 'rgba(255,255,255,0.7)', sw = 1) {
+                const el = document.createElementNS(svgNS, 'circle');
+                const p = m(cx, cy), pr = m(cx + r, cy);
+                el.setAttribute('cx', p.x); el.setAttribute('cy', p.y);
+                el.setAttribute('r', Math.abs(pr.x - p.x));
+                el.setAttribute('fill', 'none'); el.setAttribute('stroke', color); el.setAttribute('stroke-width', sw);
+                g.appendChild(el);
+            }
+            function arc(cx, cy, r, startDeg, endDeg, color = 'rgba(255,255,255,0.5)', sw = 1) {
+                const el = document.createElementNS(svgNS, 'path');
+                const steps = 24, pts = [];
+                for (let i = 0; i <= steps; i++) {
+                    const a = (startDeg + (endDeg - startDeg) * i / steps) * Math.PI / 180;
+                    pts.push(m(cx + Math.cos(a) * r, cy + Math.sin(a) * r));
+                }
+                el.setAttribute('d', pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' '));
+                el.setAttribute('fill', 'none'); el.setAttribute('stroke', color); el.setAttribute('stroke-width', sw);
+                g.appendChild(el);
+            }
+
+            // 필드 배경
+            const bg = document.createElementNS(svgNS, 'rect');
+            const p0 = m(0, 0), p1 = m(w, h);
+            bg.setAttribute('x', p0.x); bg.setAttribute('y', p0.y);
+            bg.setAttribute('width', p1.x - p0.x); bg.setAttribute('height', p1.y - p0.y);
+            bg.setAttribute('fill', '#2d5a3d'); bg.setAttribute('stroke', '#fff'); bg.setAttribute('stroke-width', '1.5');
+            g.appendChild(bg);
+
+            // 센터라인
+            line(w/2, 0, w/2, h);
+            // 센터서클
+            circle(w/2, h/2, centerCircleRadius);
+            circle(w/2, h/2, 0.3, '#fff', 2);
+
+            // 페널티박스
+            const pt = (h - penaltyWidth) / 2, pb = (h + penaltyWidth) / 2;
+            rect(0, pt, penaltyDepth, penaltyWidth);
+            rect(w - penaltyDepth, pt, penaltyDepth, penaltyWidth);
+
+            // 골박스
+            const gt = (h - goalboxWidth) / 2;
+            rect(0, gt, goalboxDepth, goalboxWidth);
+            rect(w - goalboxDepth, gt, goalboxDepth, goalboxWidth);
+
+            // 골대
+            const glt = (h - goalWidth) / 2;
+            line(0, glt, 0, glt + goalWidth, '#facc15', 2.5);
+            line(w, glt, w, glt + goalWidth, '#facc15', 2.5);
+
+            // 페널티스팟
+            circle(11, h/2, 0.3, 'rgba(255,255,255,0.7)', 2);
+            circle(w - 11, h/2, 0.3, 'rgba(255,255,255,0.7)', 2);
+
+            // 페널티아크
+            const arcR = 9.15;
+            const leftArcStart = -Math.acos(Math.min(1, penaltyDepth / arcR)) * 180 / Math.PI;
+            arc(11, h/2, arcR, leftArcStart, -leftArcStart);
+            arc(w - 11, h/2, arcR, 180 + leftArcStart, 180 - leftArcStart);
+
+            // 코너아크
+            arc(0, 0, 1, 0, 90, 'rgba(255,255,255,0.5)');
+            arc(w, 0, 1, 90, 180, 'rgba(255,255,255,0.5)');
+            arc(w, h, 1, 180, 270, 'rgba(255,255,255,0.5)');
+            arc(0, h, 1, 270, 360, 'rgba(255,255,255,0.5)');
+        }
+
+        function renderTacticsStripes() {
+            const g = document.getElementById('tactics-stripe-lines');
+            if (!g) return;
+            g.innerHTML = '';
+
+            const boundaries = calcStripeBoundaries();
+            if (boundaries.length === 0) return;
+
+            const svgNS = 'http://www.w3.org/2000/svg';
+            const N = Math.round(stripeInterval);
+            const stripeW = stripeEndType === 'full' ? fieldWidth / N : fieldWidth / (N - 1);
+            const startX = stripeEndType === 'full' ? 0 : -stripeW / 2;
+
+            // 줄무늬 밴드
+            for (let i = 0; i < N + 1; i++) {
+                const sx = startX + i * stripeW;
+                const ex = sx + stripeW;
+                if (i % 2 === 0) continue;
+                const clampSx = Math.max(0, sx), clampEx = Math.min(fieldWidth, ex);
+                if (clampSx >= clampEx) continue;
+                const p1 = fieldToTacticsMinimap(clampSx, 0);
+                const p2 = fieldToTacticsMinimap(clampEx, fieldHeight);
+                const r = document.createElementNS(svgNS, 'rect');
+                r.setAttribute('x', p1.x); r.setAttribute('y', p1.y);
+                r.setAttribute('width', p2.x - p1.x); r.setAttribute('height', p2.y - p1.y);
+                r.setAttribute('fill', 'rgba(0,0,0,0.1)');
+                g.appendChild(r);
+            }
+
+            // 경계선 (점선)
+            for (const bx of boundaries) {
+                const p1 = fieldToTacticsMinimap(bx, 0);
+                const p2 = fieldToTacticsMinimap(bx, fieldHeight);
+                const el = document.createElementNS(svgNS, 'line');
+                el.setAttribute('x1', p1.x); el.setAttribute('y1', p1.y);
+                el.setAttribute('x2', p2.x); el.setAttribute('y2', p2.y);
+                el.setAttribute('stroke', 'rgba(255,255,255,0.06)');
+                el.setAttribute('stroke-width', '0.5');
+                el.setAttribute('stroke-dasharray', '2,2');
+                g.appendChild(el);
+            }
+        }
+
+        function refreshTacticsMinimap() {
+            renderTacticsFieldLines();
+            renderTacticsStripes();
+        }
+
+        function renderMinimapStripes() {
+            const g = document.getElementById('minimap-stripe-lines');
+            if (!g) return;
+            g.innerHTML = '';
+
+            const boundaries = calcStripeBoundaries();
+            if (boundaries.length === 0) return;
+
+            const svgNS = 'http://www.w3.org/2000/svg';
+            const h = fieldHeight;
+
+            for (let i = 0; i < boundaries.length; i++) {
+                const bx = boundaries[i];
+                const p1 = fieldToMinimap(bx, 0);
+                const p2 = fieldToMinimap(bx, h);
+                const el = document.createElementNS(svgNS, 'line');
+                el.setAttribute('x1', p1.x); el.setAttribute('y1', p1.y);
+                el.setAttribute('x2', p2.x); el.setAttribute('y2', p2.y);
+                el.setAttribute('stroke', 'rgba(255,255,255,0.08)');
+                el.setAttribute('stroke-width', '1');
+                el.setAttribute('stroke-dasharray', '2,2');
+                g.appendChild(el);
+            }
+
+            // 줄무늬 색 대비 (밝은/어두운 줄)
+            const N = Math.round(stripeInterval);
+            const stripeW = stripeEndType === 'full' ? fieldWidth / N : fieldWidth / (N - 1);
+            const startX = stripeEndType === 'full' ? 0 : -stripeW / 2;
+
+            for (let i = 0; i < N + 1; i++) {
+                const sx = startX + i * stripeW;
+                const ex = sx + stripeW;
+                if (i % 2 === 0) continue; // 짝수 줄만 어둡게
+                const clampSx = Math.max(0, sx);
+                const clampEx = Math.min(fieldWidth, ex);
+                if (clampSx >= clampEx) continue;
+                const p1 = fieldToMinimap(clampSx, 0);
+                const p2 = fieldToMinimap(clampEx, fieldHeight);
+                const r = document.createElementNS(svgNS, 'rect');
+                r.setAttribute('x', p1.x); r.setAttribute('y', p1.y);
+                r.setAttribute('width', p2.x - p1.x); r.setAttribute('height', p2.y - p1.y);
+                r.setAttribute('fill', 'rgba(0,0,0,0.12)');
+                g.appendChild(r);
+            }
+        }
+
+        function renderMinimapCalibPoints() {
+            const g = document.getElementById('minimap-calib-points');
+            if (!g) return;
+            g.innerHTML = '';
+
+            const svgNS = 'http://www.w3.org/2000/svg';
+            const colorMap = {
+                corner: '#ef4444', centerline: '#22c55e', center: '#3b82f6',
+                goal: '#facc15', penalty: '#a855f7', midpoint: '#06b6d4',
+                sideline: '#f97316', grid: '#8b8b8b', stripe: '#fb923c', stripe_inner: '#fb923c'
+            };
+            const radiusMap = {
+                corner: 5, center: 4.5, centerline: 4, goal: 4, penalty: 4,
+                sideline: 3.5, midpoint: 3, grid: 2.5, stripe: 2.5, stripe_inner: 2
+            };
+
+            // 그리드 생성
+            const grid = buildFieldGrid();
+
+            // 우선순위 정렬 (낮은 것 먼저 → 높은 것이 위에 그려짐)
+            const sorted = Object.entries(grid).sort((a, b) => a[1].priority - b[1].priority);
+
+            for (const [id, pt] of sorted) {
+                const p = fieldToMinimap(pt.x, pt.y);
+                const c = document.createElementNS(svgNS, 'circle');
+                c.setAttribute('cx', p.x); c.setAttribute('cy', p.y);
+                c.setAttribute('r', radiusMap[pt.type] || 2.5);
+                c.setAttribute('fill', colorMap[pt.type] || '#888');
+                c.setAttribute('opacity', pt.priority >= 5 ? '0.85' : '0.5');
+                c.setAttribute('stroke', '#fff');
+                c.setAttribute('stroke-width', pt.priority >= 7 ? '1' : '0.5');
+                c.classList.add('map-point', pt.type);
+                c.dataset.id = id;
+                g.appendChild(c);
+            }
+        }
+
+        // 미니맵 전체 다시 그리기
+        function refreshMinimap() {
+            renderMinimapFieldLines();
+            renderMinimapStripes();
+            renderMinimapCalibPoints();
+            // 포인트 이벤트 바인딩
+            bindMinimapPointEvents();
+            // 등록 상태 반영
+            updateCalibCount();
+        }
+
+        function bindMinimapPointEvents() {
+            document.querySelectorAll('#minimap-calib-points .map-point').forEach(p => {
+                p.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const id = p.dataset.id;
+                    if (calibrationPoints[id]) {
+                        deleteCalibPoint(id);
+                    } else {
+                        selectCalibPoint(id);
+                    }
+                });
+                p.addEventListener('contextmenu', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const id = p.dataset.id;
+                    if (calibrationPoints[id]) {
+                        deleteCalibPoint(id);
+                    }
+                });
+            });
+        }
+
+        // 미니맵 좌표 얻기 (필드 좌표 기반 동적 계산)
         function getMinimapCoord(id) {
-            if (minimapCoords[id]) return minimapCoords[id];
             const fc = getFieldCoords(id);
             if (fc) return fieldToMinimap(fc.x, fc.y);
             return null;
@@ -2500,7 +3224,7 @@
                         const btn = document.createElement('div');
                         btn.title = `${isTop?'상단':'하단'} ${x}m`;
                         btn.style.cssText = `
-                            position:absolute; pointer-events:auto; cursor:pointer; z-index:20;
+                            position:absolute; pointer-events:auto; cursor:pointer; z-index:1;
                             left:${toLP(x)}; top:${toTP(isTop)};
                             transform:translate(-50%, ${isTop ? '-110%' : '10%'});
                             background:${isCur ? '#facc15' : isSet ? '#4ade80' : '#fb923c'};
@@ -2526,61 +3250,10 @@
             if (!linesGroup) return;
             
             linesGroup.innerHTML = '';
-            
+
             const registered = Object.keys(calibrationPoints);
-            if (registered.length < 2) return;
-            
-            // 연결선 정의 (등록된 포인트 간)
-            const connections = [
-                // 필드 외곽선
-                ['TL', 'TR'], ['TR', 'BR'], ['BR', 'BL'], ['BL', 'TL'],
-                // 센터라인
-                ['CLA', 'CLB'],
-                // 터치라인 세분화
-                ['TL', 'T14'], ['T14', 'CLA'], ['CLA', 'T34'], ['T34', 'TR'],
-                ['BL', 'B14'], ['B14', 'CLB'], ['CLB', 'B34'], ['B34', 'BR'],
-                // 좌측 페널티박스 (사각형)
-                ['PLET', 'PLT'], ['PLT', 'PLB'], ['PLB', 'PLEB'], ['PLEB', 'PLET'],
-                // 우측 페널티박스 (사각형)
-                ['PRET', 'PRT'], ['PRT', 'PRB'], ['PRB', 'PREB'], ['PREB', 'PRET'],
-                // 센터서클
-                ['CL', 'CT'], ['CT', 'CR'], ['CR', 'CB'], ['CB', 'CL'],
-                // 골대
-                ['GLT', 'GLB'], ['GRT', 'GRB']
-            ];
-            
-            // 등록된 포인트 간 연결선 그리기
-            for (const [p1, p2] of connections) {
-                if (calibrationPoints[p1] && calibrationPoints[p2]) {
-                    const c1 = getMinimapCoord(p1);
-                    const c2 = getMinimapCoord(p2);
-                    if (c1 && c2) {
-                        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-                        line.setAttribute('x1', c1.x);
-                        line.setAttribute('y1', c1.y);
-                        line.setAttribute('x2', c2.x);
-                        line.setAttribute('y2', c2.y);
-                        line.setAttribute('stroke', '#4ade80');
-                        line.setAttribute('stroke-width', '2');
-                        line.setAttribute('opacity', '0.8');
-                        linesGroup.appendChild(line);
-                    }
-                }
-            }
-            
-            // 센터서클 (4개 포인트 모두 등록되면 원 그리기)
-            if (calibrationPoints.CL && calibrationPoints.CR && calibrationPoints.CT && calibrationPoints.CB) {
-                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-                circle.setAttribute('cx', '110');
-                circle.setAttribute('cy', '70');
-                circle.setAttribute('r', '18');
-                circle.setAttribute('fill', 'none');
-                circle.setAttribute('stroke', '#4ade80');
-                circle.setAttribute('stroke-width', '2');
-                circle.setAttribute('opacity', '0.8');
-                linesGroup.appendChild(circle);
-            }
-            
+            if (registered.length < 1) return;
+
             // 등록된 포인트에 체크마크 표시
             for (const id of registered) {
                 const coord = getMinimapCoord(id);
@@ -2599,7 +3272,7 @@
         // ============ 전술 모드 함수들 ============
         
         function toggleTacticsMode() {
-            const hasCorners = calibrationPoints.TL && calibrationPoints.TR && calibrationPoints.BL && calibrationPoints.BR;
+            const hasCorners = hasCornerPoints();
             
             if (!isTacticsMode && !hasCorners) {
                 showToast('⚠️ 먼저 캘리브레이션을 완료하세요 (코너 4개 필수)');
@@ -2609,12 +3282,17 @@
             isTacticsMode = !isTacticsMode;
             document.getElementById('tactics-panel').style.display = isTacticsMode ? 'block' : 'none';
             document.getElementById('tactics-btn').classList.toggle('active', isTacticsMode);
-            
+
             // 캘리브레이션 모드 끄기
             if (isTacticsMode && isCalibrationMode) {
                 toggleCalibrationMode();
             }
-            
+
+            // 전술 미니맵 필드 라인 + 줄무늬 렌더링
+            if (isTacticsMode) {
+                refreshTacticsMinimap();
+            }
+
             showToast(isTacticsMode ? '🎯 전술 모드 ON - 화면을 클릭하세요' : '🎯 전술 모드 OFF');
         }
         
@@ -2630,7 +3308,8 @@
                 id: ++tacticsIdCounter,
                 fieldX: fieldCoord.x,
                 fieldY: fieldCoord.y,
-                color: currentTacticsColor
+                team: currentTacticsTeam,
+                color: teamColors[currentTacticsTeam]
             };
             
             tacticsPoints.push(point);
@@ -2640,6 +3319,14 @@
         
         function clearTacticsPoints() {
             tacticsPoints = [];
+            trackers = [];
+            trackIdCounter = 0;
+            isTracking = false;
+            _yoloRunning = false;
+            document.getElementById('tracker-toggle-btn').classList.remove('active');
+            document.getElementById('tracker-info').style.display = 'none';
+            const bboxLayer = document.getElementById('tracker-bbox-layer');
+            if (bboxLayer) bboxLayer.innerHTML = '';
             updateTacticsMinimap();
             document.getElementById('tactics-count').textContent = '0';
             showToast('🗑️ 전술 포인트 전체 삭제됨');
@@ -2655,7 +3342,523 @@
             document.getElementById('tactics-count').textContent = tacticsPoints.length;
             showToast('↩️ 마지막 포인트 삭제됨');
         }
-        
+
+        // ============ YOLO + IoU 트래커 ============
+        let isTracking = false;
+        let _trackFrame = 0;
+        let _yoloRunning = false;
+        let trackers = []; // [{ id, cx, cy, w, h, pointIndex, team, color, lost, lostCount }]
+        let trackIdCounter = 0;
+        let trackCanvas = null;
+        let trackCtx = null;
+
+        // YOLO 모델
+        let yoloSession = null;
+        let yoloModelName = '';
+        const YOLO_INPUT_SIZE = 640;
+        const YOLO_CONF_THRESH = 0.35;
+        const YOLO_IOU_THRESH = 0.45;
+        const YOLO_PERSON_CLASS = 0; // COCO person class
+        const TRACK_IOU_THRESH = 0.25;
+        const TRACK_MAX_LOST = 15; // lost 후 제거까지 프레임 수
+
+        function initTrackCanvas() {
+            if (trackCanvas) return;
+            trackCanvas = document.createElement('canvas');
+            trackCtx = trackCanvas.getContext('2d', { willReadFrequently: true });
+        }
+
+        // --- YOLO 모델 로드 ---
+        async function loadYoloModel(arrayBuffer, fileName) {
+            try {
+                showToast('🔄 YOLO 모델 로딩 중...');
+                yoloSession = await ort.InferenceSession.create(arrayBuffer, {
+                    executionProviders: ['webgl', 'wasm']
+                });
+                yoloModelName = fileName || 'yolo';
+                showToast(`✅ ${yoloModelName} 로드 완료`);
+                // 트래킹 버튼 텍스트 업데이트
+                document.getElementById('tracker-toggle-btn').textContent = '🎯 YOLO 트래킹';
+            } catch (err) {
+                console.error('YOLO load error:', err);
+                showToast('❌ YOLO 모델 로드 실패: ' + err.message);
+                yoloSession = null;
+            }
+        }
+
+        // --- 전처리: 비디오 프레임 → YOLO 입력 텐서 ---
+        function preprocessFrame() {
+            const vw = video.videoWidth, vh = video.videoHeight;
+            const sz = YOLO_INPUT_SIZE;
+
+            // Letterbox resize
+            const scale = Math.min(sz / vw, sz / vh);
+            const nw = Math.round(vw * scale);
+            const nh = Math.round(vh * scale);
+            const padX = Math.round((sz - nw) / 2);
+            const padY = Math.round((sz - nh) / 2);
+
+            initTrackCanvas();
+            trackCanvas.width = sz;
+            trackCanvas.height = sz;
+            trackCtx.fillStyle = '#808080';
+            trackCtx.fillRect(0, 0, sz, sz);
+            trackCtx.drawImage(video, padX, padY, nw, nh);
+
+            const imgData = trackCtx.getImageData(0, 0, sz, sz);
+            const d = imgData.data;
+            const float32 = new Float32Array(3 * sz * sz);
+
+            // HWC RGBA → CHW RGB, normalized 0~1
+            const plane = sz * sz;
+            for (let i = 0; i < plane; i++) {
+                const j = i * 4;
+                float32[i] = d[j] / 255.0;             // R
+                float32[plane + i] = d[j + 1] / 255.0; // G
+                float32[2 * plane + i] = d[j + 2] / 255.0; // B
+            }
+
+            return { tensor: float32, scale, padX, padY };
+        }
+
+        // --- YOLO 추론 ---
+        async function runYoloDetection() {
+            if (!yoloSession || !video) return [];
+
+            const { tensor, scale, padX, padY } = preprocessFrame();
+            const sz = YOLO_INPUT_SIZE;
+
+            const inputTensor = new ort.Tensor('float32', tensor, [1, 3, sz, sz]);
+            const feeds = {};
+            const inputName = yoloSession.inputNames[0];
+            feeds[inputName] = inputTensor;
+
+            const results = await yoloSession.run(feeds);
+            const outputName = yoloSession.outputNames[0];
+            const output = results[outputName];
+
+            // 출력 파싱
+            const shape = output.dims;
+            const data = output.data;
+            let detections = [];
+
+            // 디버그: 출력 구조 확인 (최초 1회)
+            if (!runYoloDetection._logged) {
+                runYoloDetection._logged = true;
+                console.log('YOLO output names:', yoloSession.outputNames);
+                console.log('YOLO output shape:', shape);
+                console.log('YOLO output sample (first 20):', Array.from(data.slice(0, 20)));
+                // 모든 출력 텐서 확인
+                for (const name of yoloSession.outputNames) {
+                    const t = results[name];
+                    console.log(`  ${name}: dims=${t.dims}, len=${t.data.length}`);
+                }
+            }
+
+            if (shape.length === 3 && shape[0] === 1) {
+                const dim1 = shape[1]; // N or channels
+                const dim2 = shape[2]; // channels or N
+
+                // [1, N, 6] 또는 [1, N, 7]: NMS 내장 형식 (YOLO26 등)
+                // 각 행 = [x1, y1, x2, y2, conf, class] 또는 [x1, y1, x2, y2, conf, class, ...]
+                if (dim2 <= 7) {
+                    const N = dim1;
+                    const cols = dim2;
+                    console.log('YOLO NMS-built-in [1,N,6] format: N=', N, 'cols=', cols);
+
+                    for (let i = 0; i < N; i++) {
+                        const offset = i * cols;
+                        const x1 = data[offset + 0];
+                        const y1 = data[offset + 1];
+                        const x2 = data[offset + 2];
+                        const y2 = data[offset + 3];
+                        const score = data[offset + 4];
+                        const cls = Math.round(data[offset + 5]);
+
+                        if (score < YOLO_CONF_THRESH) continue;
+                        if (cls !== YOLO_PERSON_CLASS) continue;
+
+                        // xyxy → cxcywh, letterbox → 원본 비디오 좌표
+                        const cx = ((x1 + x2) / 2 - padX) / scale;
+                        const cy = ((y1 + y2) / 2 - padY) / scale;
+                        const w = (x2 - x1) / scale;
+                        const h = (y2 - y1) / scale;
+
+                        detections.push({ cx, cy, w, h, score });
+                    }
+                }
+                // [1, N, 84+]: transposed 형식 [1, numBoxes, 4+numClasses]
+                else if (dim2 > 7 && dim1 > dim2) {
+                    const numBoxes = dim1, channels = dim2;
+                    const numClasses = channels - 4;
+                    console.log('YOLO transposed [1,N,C] format: N=', numBoxes, 'C=', channels);
+
+                    for (let i = 0; i < numBoxes; i++) {
+                        const offset = i * channels;
+                        const cx = data[offset + 0];
+                        const cy = data[offset + 1];
+                        const w  = data[offset + 2];
+                        const h  = data[offset + 3];
+
+                        let maxScore = 0, maxCls = 0;
+                        for (let c = 0; c < numClasses; c++) {
+                            const s = data[offset + 4 + c];
+                            if (s > maxScore) { maxScore = s; maxCls = c; }
+                        }
+                        if (maxCls !== YOLO_PERSON_CLASS || maxScore < YOLO_CONF_THRESH) continue;
+
+                        const vx = (cx - padX) / scale;
+                        const vy = (cy - padY) / scale;
+                        const vw = w / scale;
+                        const vh = h / scale;
+                        detections.push({ cx: vx, cy: vy, w: vw, h: vh, score: maxScore });
+                    }
+                }
+                // [1, 84, 8400]: 표준 ultralytics 형식
+                else {
+                    const channels = dim1, numBoxes = dim2;
+                    const numClasses = channels - 4;
+                    console.log('YOLO standard [1,C,N] format: C=', channels, 'N=', numBoxes);
+
+                    for (let i = 0; i < numBoxes; i++) {
+                        const cx = data[0 * numBoxes + i];
+                        const cy = data[1 * numBoxes + i];
+                        const w  = data[2 * numBoxes + i];
+                        const h  = data[3 * numBoxes + i];
+
+                        let maxScore = 0, maxCls = 0;
+                        for (let c = 0; c < numClasses; c++) {
+                            const s = data[(4 + c) * numBoxes + i];
+                            if (s > maxScore) { maxScore = s; maxCls = c; }
+                        }
+                        if (maxCls !== YOLO_PERSON_CLASS || maxScore < YOLO_CONF_THRESH) continue;
+
+                        const vx = (cx - padX) / scale;
+                        const vy = (cy - padY) / scale;
+                        const vw = w / scale;
+                        const vh = h / scale;
+                        detections.push({ cx: vx, cy: vy, w: vw, h: vh, score: maxScore });
+                    }
+                }
+            } else if (shape.length === 2) {
+                // [N, 6] 형식 (NMS 내장): [cx, cy, w, h, score, class]
+                const N = shape[0];
+                console.log('YOLO NMS-built-in format: N=', N);
+                for (let i = 0; i < N; i++) {
+                    const cx = data[i * 6 + 0];
+                    const cy = data[i * 6 + 1];
+                    const w  = data[i * 6 + 2];
+                    const h  = data[i * 6 + 3];
+                    const score = data[i * 6 + 4];
+                    const cls = data[i * 6 + 5];
+                    if (cls !== YOLO_PERSON_CLASS || score < YOLO_CONF_THRESH) continue;
+                    const vx = (cx - padX) / scale;
+                    const vy = (cy - padY) / scale;
+                    const vw = w / scale;
+                    const vh = h / scale;
+                    detections.push({ cx: vx, cy: vy, w: vw, h: vh, score });
+                }
+            } else {
+                console.warn('Unknown YOLO output shape:', shape);
+            }
+
+            if (!runYoloDetection._logged2) {
+                runYoloDetection._logged2 = true;
+                console.log('Detections before NMS:', detections.length, detections.slice(0, 3));
+            }
+
+            // NMS
+            detections = nmsBoxes(detections, YOLO_IOU_THRESH);
+            return detections;
+        }
+
+        // --- NMS ---
+        function nmsBoxes(boxes, iouThresh) {
+            boxes.sort((a, b) => b.score - a.score);
+            const keep = [];
+            const removed = new Set();
+            for (let i = 0; i < boxes.length; i++) {
+                if (removed.has(i)) continue;
+                keep.push(boxes[i]);
+                for (let j = i + 1; j < boxes.length; j++) {
+                    if (removed.has(j)) continue;
+                    if (calcIoU(boxes[i], boxes[j]) > iouThresh) {
+                        removed.add(j);
+                    }
+                }
+            }
+            return keep;
+        }
+
+        // --- IoU 계산 ---
+        function calcIoU(a, b) {
+            const ax1 = a.cx - a.w / 2, ay1 = a.cy - a.h / 2;
+            const ax2 = a.cx + a.w / 2, ay2 = a.cy + a.h / 2;
+            const bx1 = b.cx - b.w / 2, by1 = b.cy - b.h / 2;
+            const bx2 = b.cx + b.w / 2, by2 = b.cy + b.h / 2;
+            const ix1 = Math.max(ax1, bx1), iy1 = Math.max(ay1, by1);
+            const ix2 = Math.min(ax2, bx2), iy2 = Math.min(ay2, by2);
+            const inter = Math.max(0, ix2 - ix1) * Math.max(0, iy2 - iy1);
+            const union = a.w * a.h + b.w * b.h - inter;
+            return union > 0 ? inter / union : 0;
+        }
+
+        // --- IoU 매칭: 기존 trackers ↔ 새 detections ---
+        function matchDetections(prevTrackers, detections) {
+            const pairs = [];
+            for (let i = 0; i < prevTrackers.length; i++) {
+                for (let j = 0; j < detections.length; j++) {
+                    const iou = calcIoU(prevTrackers[i], detections[j]);
+                    if (iou > TRACK_IOU_THRESH) {
+                        pairs.push({ i, j, iou });
+                    }
+                }
+            }
+            pairs.sort((a, b) => b.iou - a.iou);
+
+            const usedT = new Set(), usedD = new Set();
+            const matched = []; // { trackerIdx, detIdx }
+            for (const p of pairs) {
+                if (usedT.has(p.i) || usedD.has(p.j)) continue;
+                matched.push({ trackerIdx: p.i, detIdx: p.j });
+                usedT.add(p.i);
+                usedD.add(p.j);
+            }
+            const unmatchedDets = [];
+            for (let j = 0; j < detections.length; j++) {
+                if (!usedD.has(j)) unmatchedDets.push(j);
+            }
+            const unmatchedTrackers = [];
+            for (let i = 0; i < prevTrackers.length; i++) {
+                if (!usedT.has(i)) unmatchedTrackers.push(i);
+            }
+            return { matched, unmatchedDets, unmatchedTrackers };
+        }
+
+        // --- 메인 트래킹 업데이트 (async) ---
+        async function updateYoloTrackers() {
+            if (!yoloSession || !video) return;
+
+            const detections = await runYoloDetection();
+            const vw = video.videoWidth, vh = video.videoHeight;
+
+            // IoU 매칭
+            const { matched, unmatchedDets, unmatchedTrackers } = matchDetections(trackers, detections);
+
+            // 1) 매칭된 트래커 업데이트
+            for (const m of matched) {
+                const tr = trackers[m.trackerIdx];
+                const det = detections[m.detIdx];
+                tr.cx = det.cx;
+                tr.cy = det.cy;
+                tr.w = det.w;
+                tr.h = det.h;
+                tr.score = det.score;
+                tr.lost = false;
+                tr.lostCount = 0;
+
+                // bbox 하단 중점 → UV → 필드 좌표
+                const footUvX = tr.cx / vw;
+                const footUvY = 1 - (tr.cy + tr.h / 2) / vh;
+                tr.uvX = tr.cx / vw;
+                tr.uvY = 1 - tr.cy / vh;
+
+                if (uvTPS.valid && uvTPS.uvToField) {
+                    const fc = applyNormalizedTPS(uvTPS.uvToField, footUvX, footUvY);
+                    if (fc && fc.x >= -5 && fc.x <= fieldWidth + 5 && fc.y >= -5 && fc.y <= fieldHeight + 5) {
+                        tacticsPoints[tr.pointIndex].fieldX = fc.x;
+                        tacticsPoints[tr.pointIndex].fieldY = fc.y;
+                    }
+                }
+            }
+
+            // 2) 미매칭 트래커 → lost 카운트 증가
+            for (const i of unmatchedTrackers) {
+                trackers[i].lostCount++;
+                if (trackers[i].lostCount > TRACK_MAX_LOST) {
+                    trackers[i].lost = true;
+                }
+            }
+
+            // 3) 미매칭 detection → 새 트래커 생성
+            for (const j of unmatchedDets) {
+                const det = detections[j];
+                // bbox 하단 중점 → 필드 좌표
+                const footUvX = det.cx / vw;
+                const footUvY = 1 - (det.cy + det.h / 2) / vh;
+                let fieldX = null, fieldY = null;
+                if (uvTPS.valid && uvTPS.uvToField) {
+                    const fc = applyNormalizedTPS(uvTPS.uvToField, footUvX, footUvY);
+                    if (fc && fc.x >= -5 && fc.x <= fieldWidth + 5 && fc.y >= -5 && fc.y <= fieldHeight + 5) {
+                        fieldX = fc.x;
+                        fieldY = fc.y;
+                    }
+                }
+                if (fieldX === null) continue; // 필드 밖이면 스킵
+
+                // 전술 포인트 생성
+                const point = {
+                    id: ++tacticsIdCounter,
+                    fieldX, fieldY,
+                    team: currentTacticsTeam,
+                    color: teamColors[currentTacticsTeam]
+                };
+                tacticsPoints.push(point);
+
+                trackers.push({
+                    id: ++trackIdCounter,
+                    cx: det.cx,
+                    cy: det.cy,
+                    w: det.w,
+                    h: det.h,
+                    score: det.score,
+                    uvX: det.cx / vw,
+                    uvY: 1 - det.cy / vh,
+                    pointIndex: tacticsPoints.length - 1,
+                    team: currentTacticsTeam,
+                    color: teamColors[currentTacticsTeam],
+                    lost: false,
+                    lostCount: 0
+                });
+            }
+
+            // 4) lost 트래커 제거
+            const lostIndices = new Set();
+            for (let i = trackers.length - 1; i >= 0; i--) {
+                if (trackers[i].lost) lostIndices.add(i);
+            }
+            if (lostIndices.size > 0) {
+                // tacticsPoints에서도 제거 (역순)
+                const lostPointIndices = [...lostIndices].map(i => trackers[i].pointIndex).sort((a, b) => b - a);
+                for (const pi of lostPointIndices) {
+                    tacticsPoints.splice(pi, 1);
+                }
+                // 트래커 제거
+                const newTrackers = trackers.filter((_, i) => !lostIndices.has(i));
+                // pointIndex 재매핑
+                for (const tr of newTrackers) {
+                    let shift = 0;
+                    for (const pi of lostPointIndices) {
+                        if (tr.pointIndex > pi) shift++;
+                    }
+                    tr.pointIndex -= shift;
+                }
+                trackers = newTrackers;
+            }
+
+            updateTacticsMinimap();
+            document.getElementById('tactics-count').textContent = tacticsPoints.length;
+
+            // 상태 표시
+            const infoEl = document.getElementById('tracker-info');
+            const avgConf = detections.length > 0
+                ? (detections.reduce((s, d) => s + d.score, 0) / detections.length * 100).toFixed(0)
+                : 0;
+            infoEl.textContent = `YOLO: ${detections.length}명 검출 (avg ${avgConf}%) | 추적: ${trackers.length}명`;
+        }
+
+        // --- UV → 스크린 좌표 (트래커용) ---
+        function trackerUvToScreen(uvX, uvY) {
+            return uvToScreen({ u: uvX, v: uvY }, true);
+        }
+
+        // --- 트래커 BBox 오버레이 렌더링 ---
+        function renderTrackerBboxOverlay() {
+            const layer = document.getElementById('tracker-bbox-layer');
+            if (!layer) return;
+            layer.innerHTML = '';
+            if (trackers.length === 0) return;
+
+            const vw = video.videoWidth || 1, vh = video.videoHeight || 1;
+
+            for (const tr of trackers) {
+                const center = trackerUvToScreen(tr.uvX, tr.uvY);
+                if (!center) continue;
+
+                // bbox 크기를 스크린 스케일로 변환
+                const duW = (tr.w / 2) / vw;
+                const duH = (tr.h / 2) / vh;
+                const cornerR = trackerUvToScreen(tr.uvX + duW, tr.uvY);
+                const cornerB = trackerUvToScreen(tr.uvX, tr.uvY - duH);
+                const rw = cornerR ? Math.abs(cornerR.x - center.x) * 2 : 30;
+                const rh = cornerB ? Math.abs(cornerB.y - center.y) * 2 : 50;
+
+                const isLost = tr.lostCount > 5;
+                const color = isLost ? '#ff4444' : (tr.color || '#4ade80');
+                const opacity = isLost ? 0.4 : 0.9;
+
+                // BBox 사각형
+                const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                rect.setAttribute('x', center.x - rw / 2);
+                rect.setAttribute('y', center.y - rh / 2);
+                rect.setAttribute('width', rw);
+                rect.setAttribute('height', rh);
+                rect.setAttribute('fill', 'none');
+                rect.setAttribute('stroke', color);
+                rect.setAttribute('stroke-width', '2');
+                rect.setAttribute('stroke-opacity', opacity);
+                if (isLost) rect.setAttribute('stroke-dasharray', '4 2');
+                rect.setAttribute('rx', '2');
+                layer.appendChild(rect);
+
+                // 하단 중점 마커 (발 위치)
+                const footY = center.y + rh / 2;
+                const foot = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                foot.setAttribute('x1', center.x - 4);
+                foot.setAttribute('y1', footY);
+                foot.setAttribute('x2', center.x + 4);
+                foot.setAttribute('y2', footY);
+                foot.setAttribute('stroke', color);
+                foot.setAttribute('stroke-width', '3');
+                foot.setAttribute('stroke-opacity', opacity);
+                layer.appendChild(foot);
+
+                // ID 라벨
+                const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                txt.setAttribute('x', center.x - rw / 2 + 2);
+                txt.setAttribute('y', center.y - rh / 2 - 4);
+                txt.setAttribute('fill', color);
+                txt.setAttribute('font-size', '11');
+                txt.setAttribute('font-weight', 'bold');
+                txt.setAttribute('font-family', 'sans-serif');
+                txt.setAttribute('opacity', opacity);
+                txt.textContent = `#${tr.id} ${tr.score ? (tr.score * 100).toFixed(0) + '%' : ''}`;
+                layer.appendChild(txt);
+            }
+        }
+
+        function toggleTracking() {
+            if (!yoloSession) {
+                showToast('⚠️ ONNX 모델을 먼저 드래그앤드랍으로 로드하세요');
+                return;
+            }
+            isTracking = !isTracking;
+            const btn = document.getElementById('tracker-toggle-btn');
+            const infoEl = document.getElementById('tracker-info');
+            btn.classList.toggle('active', isTracking);
+
+            if (isTracking) {
+                trackers = [];
+                trackIdCounter = 0;
+                _yoloRunning = false;
+                infoEl.style.display = 'block';
+                infoEl.textContent = 'YOLO 검출 시작...';
+                showToast('🎯 YOLO 트래킹 시작');
+            } else {
+                trackers = [];
+                trackIdCounter = 0;
+                _yoloRunning = false;
+                const layer = document.getElementById('tracker-bbox-layer');
+                if (layer) layer.innerHTML = '';
+                infoEl.style.display = 'none';
+                // 트래커가 만든 전술 포인트도 정리
+                tacticsPoints = [];
+                updateTacticsMinimap();
+                document.getElementById('tactics-count').textContent = '0';
+                showToast('🎯 YOLO 트래킹 중지');
+            }
+        }
+
         function updateTacticsMinimap() {
             const pointsGroup = document.getElementById('tactics-points');
             const linesGroup = document.getElementById('tactics-lines');
@@ -2664,11 +3867,9 @@
             pointsGroup.innerHTML = '';
             linesGroup.innerHTML = '';
             
-            // 필드 좌표 → 미니맵 좌표 변환
-            // 미니맵: x=20~200 (180px), y=5~140 (135px)
-            // 필드: x=0~105, y=0~68
-            const toMinimapX = (fx) => 20 + (fx / fieldWidth) * 180;
-            const toMinimapY = (fy) => 5 + (fy / fieldHeight) * 135;
+            // 필드 좌표 → 전술 미니맵 좌표 변환
+            const toMinimapX = (fx) => fieldToTacticsMinimap(fx, 0).x;
+            const toMinimapY = (fy) => fieldToTacticsMinimap(0, fy).y;
             
             // 포인트 그리기
             for (let i = 0; i < tacticsPoints.length; i++) {
@@ -2679,30 +3880,30 @@
                 const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
                 g.setAttribute('data-point-index', i);
                 g.style.cursor = 'grab';
-                
-                // 외곽 원
-                const outerCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-                outerCircle.setAttribute('cx', mx);
-                outerCircle.setAttribute('cy', my);
-                outerCircle.setAttribute('r', '9');
-                outerCircle.setAttribute('fill', p.color);
-                outerCircle.setAttribute('stroke', '#fff');
-                outerCircle.setAttribute('stroke-width', '2');
-                outerCircle.setAttribute('opacity', '0.95');
-                g.appendChild(outerCircle);
-                
-                // 번호 표시
-                const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                text.setAttribute('x', mx);
-                text.setAttribute('y', my + 4);
-                text.setAttribute('text-anchor', 'middle');
-                text.setAttribute('fill', '#fff');
-                text.setAttribute('font-size', '9');
-                text.setAttribute('font-weight', 'bold');
-                text.setAttribute('pointer-events', 'none');
-                text.textContent = p.id;
-                g.appendChild(text);
-                
+
+                if (p.team === 'ball') {
+                    // 공 아이콘
+                    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    text.setAttribute('x', mx);
+                    text.setAttribute('y', my);
+                    text.setAttribute('text-anchor', 'middle');
+                    text.setAttribute('dominant-baseline', 'central');
+                    text.setAttribute('font-size', '6');
+                    text.textContent = '⚽';
+                    g.appendChild(text);
+                } else {
+                    // 선수 원
+                    const outerCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                    outerCircle.setAttribute('cx', mx);
+                    outerCircle.setAttribute('cy', my);
+                    outerCircle.setAttribute('r', '2.25');
+                    outerCircle.setAttribute('fill', p.color);
+                    outerCircle.setAttribute('stroke', '#fff');
+                    outerCircle.setAttribute('stroke-width', '0.5');
+                    outerCircle.setAttribute('opacity', '0.95');
+                    g.appendChild(outerCircle);
+                }
+
                 // 드래그 이벤트
                 g.addEventListener('mousedown', (e) => {
                     e.stopPropagation();
@@ -2710,34 +3911,11 @@
                     tacticsDragState = { pointIndex: i };
                     g.style.cursor = 'grabbing';
                 });
-                
+
                 pointsGroup.appendChild(g);
             }
             
-            // 같은 색상의 포인트 연결선 (선택적)
-            const colorGroups = {};
-            for (const p of tacticsPoints) {
-                if (!colorGroups[p.color]) colorGroups[p.color] = [];
-                colorGroups[p.color].push(p);
-            }
-            
-            for (const [color, points] of Object.entries(colorGroups)) {
-                if (points.length < 2) continue;
-                for (let i = 0; i < points.length - 1; i++) {
-                    const p1 = points[i];
-                    const p2 = points[i + 1];
-                    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-                    line.setAttribute('x1', toMinimapX(p1.fieldX));
-                    line.setAttribute('y1', toMinimapY(p1.fieldY));
-                    line.setAttribute('x2', toMinimapX(p2.fieldX));
-                    line.setAttribute('y2', toMinimapY(p2.fieldY));
-                    line.setAttribute('stroke', color);
-                    line.setAttribute('stroke-width', '2');
-                    line.setAttribute('stroke-dasharray', '4,2');
-                    line.setAttribute('opacity', '0.6');
-                    linesGroup.appendChild(line);
-                }
-            }
+            // 선수 간 연결선 제거됨
         }
         
         // 미니맵 드래그 이벤트 설정
@@ -2783,56 +3961,59 @@
         })();
 
         
-        // 화면 좌표 → 필드 좌표 (현재 화면에 투영된 키포인트로 TPS 계산 → 시점/줌 무관)
+        // 화면 좌표 → 필드 좌표 (UV-space TPS 기반, 카메라 독립적)
         function screenToField(screenX, screenY) {
-            const srcPoints = []; // 현재 화면 좌표
-            const dstPoints = []; // 대응하는 필드 좌표
-
-            for (const [id, data] of Object.entries(calibrationPoints)) {
-                const fieldCoord = getFieldCoords(id);
-                if (!fieldCoord) continue;
-
-                // 현재 렌더링 기준 화면 위치
-                const screenPos = (data.uv ? uvToScreen(data.uv, true) : null)
-                                  || worldToScreen(data.world3D, true);
-                if (!screenPos) continue;
-
-                srcPoints.push([screenPos.x, screenPos.y]);
-                dstPoints.push([fieldCoord.x, fieldCoord.y]);
-            }
-
-            if (srcPoints.length < 4) {
-                showToast('⚠️ 캘리브레이션 포인트가 4개 이상 화면에 보여야 합니다');
+            // 1. raycast로 UV 좌표 직접 획득
+            const hit = screenToWorld(screenX, screenY);
+            if (!hit || !hit.uv) {
                 return null;
             }
 
-            const tps = computeTPS(srcPoints, dstPoints);
-            if (!tps) return null;
+            // 2. UV-space TPS가 유효하면 사용 (정규화 TPS)
+            if (uvTPS.valid && uvTPS.uvToField) {
+                const result = applyNormalizedTPS(uvTPS.uvToField, hit.uv.x, hit.uv.y);
+                if (result) {
+                    const { x: fieldX, y: fieldY } = result;
+                    if (fieldX < -20 || fieldX > fieldWidth + 20 || fieldY < -20 || fieldY > fieldHeight + 20) return null;
+                    return {
+                        x: Math.max(0, Math.min(fieldWidth, fieldX)),
+                        y: Math.max(0, Math.min(fieldHeight, fieldY))
+                    };
+                }
+            }
 
-            const result = applyTPS(tps, screenX, screenY);
-            if (!result) return null;
-
-            const { x: fieldX, y: fieldY } = result;
-            if (fieldX < -20 || fieldX > fieldWidth + 20 || fieldY < -20 || fieldY > fieldHeight + 20) return null;
-
-            return {
-                x: Math.max(0, Math.min(fieldWidth, fieldX)),
-                y: Math.max(0, Math.min(fieldHeight, fieldY))
-            };
+            // 3. 폴백: 기존 bilinear UV→field (Three.js uv는 {x,y}, uvToField는 {u,v} 기대)
+            return uvToField({ u: hit.uv.x, v: hit.uv.y });
         }
 
         // (구버전 uvToFieldTPS, uvToField는 폴백으로만 유지)
         
+        // 코너 4개 존재 여부 확인 (레거시/IX_ 양방향)
+        function hasCornerPoints() {
+            return !!(getCalibPoint('TL') && getCalibPoint('TR') && getCalibPoint('BL') && getCalibPoint('BR'));
+        }
+
+        // 캘리브레이션 포인트 접근 (레거시 ID / IX_ ID 양방향)
+        function getCalibPoint(legacyId) {
+            if (calibrationPoints[legacyId]) return calibrationPoints[legacyId];
+            const legacyMap = getLegacyToGridMap();
+            const gridId = legacyMap[legacyId];
+            if (gridId && calibrationPoints[gridId]) return calibrationPoints[gridId];
+            return null;
+        }
+
         // UV 좌표 → 필드 좌표 (Inverse Bilinear Interpolation)
         function uvToField(uv) {
-            const hasCorners = calibrationPoints.TL && calibrationPoints.TR && calibrationPoints.BL && calibrationPoints.BR;
+            const tl = getCalibPoint('TL'), tr = getCalibPoint('TR');
+            const bl = getCalibPoint('BL'), br = getCalibPoint('BR');
+            const hasCorners = tl && tr && bl && br;
             if (!hasCorners || !uv) return null;
-            
+
             // 코너 4개의 UV 좌표
-            const tlUV = calibrationPoints.TL.uv;
-            const trUV = calibrationPoints.TR.uv;
-            const blUV = calibrationPoints.BL.uv;
-            const brUV = calibrationPoints.BR.uv;
+            const tlUV = tl.uv;
+            const trUV = tr.uv;
+            const blUV = bl.uv;
+            const brUV = br.uv;
             
             if (!tlUV || !trUV || !blUV || !brUV) {
                 console.warn('UV 좌표 없음, world3D 사용');
@@ -2921,14 +4102,15 @@
         
         // 3D 월드 좌표 → 필드 좌표 (fallback)
         function worldToField(world3D) {
-            const hasCorners = calibrationPoints.TL && calibrationPoints.TR && calibrationPoints.BL && calibrationPoints.BR;
-            if (!hasCorners) return null;
-            
+            const tlP = getCalibPoint('TL'), trP = getCalibPoint('TR');
+            const blP = getCalibPoint('BL'), brP = getCalibPoint('BR');
+            if (!tlP || !trP || !blP || !brP) return null;
+
             // 코너 4개의 world3D 좌표
-            const tl = calibrationPoints.TL.world3D;
-            const tr = calibrationPoints.TR.world3D;
-            const bl = calibrationPoints.BL.world3D;
-            const br = calibrationPoints.BR.world3D;
+            const tl = tlP.world3D;
+            const tr = trP.world3D;
+            const bl = blP.world3D;
+            const br = brP.world3D;
             
             // 먼저 필드 평면에서의 상대 위치 계산
             // X축: TL→TR 방향, Y축: TL→BL 방향
@@ -3062,6 +4244,8 @@
                 penaltyWidth: penaltyWidth,
                 goalboxDepth: goalboxDepth,
                 goalboxWidth: goalboxWidth,
+                stripeInterval: stripeInterval,
+                stripeEndType: stripeEndType,
                 calibrationPoints: {},
                 timestamp: new Date().toISOString()
             };
@@ -3134,7 +4318,17 @@
                     goalboxWidth = data.goalboxWidth;
                     document.getElementById('goalbox-width').value = goalboxWidth;
                 }
-                
+
+                // 줄무늬 설정 복원
+                if (data.stripeInterval) {
+                    stripeInterval = data.stripeInterval;
+                    document.getElementById('stripe-count').value = stripeInterval;
+                }
+                if (data.stripeEndType) {
+                    stripeEndType = data.stripeEndType;
+                    document.getElementById('stripe-end-type').value = stripeEndType;
+                }
+
                 // 캘리브레이션 포인트 복원
                 calibrationPoints = {};
                 calibrationHistory = [];
@@ -3153,16 +4347,18 @@
                         };
                     }
                     
-                    calibrationPoints[id] = {
-                        world3D: world3D,
-                        pixel2D: point.pixel2D,
-                        uv: uv
-                    };
+                    const pointData = { world3D, pixel2D: point.pixel2D, uv };
+
+                    // 레거시 ID로 저장
+                    calibrationPoints[id] = pointData;
                     calibrationHistory.push(id);
-                    
-                    // UI 업데이트
-                    const el = document.querySelector(`.map-point[data-id="${id}"]`);
-                    if (el) el.classList.add('set');
+
+                    // 레거시 ID → IX_ ID 매핑 (양방향 접근)
+                    const legacyMap = getLegacyToGridMap();
+                    const gridId = legacyMap[id] || resolvePointId(id);
+                    if (gridId !== id) {
+                        calibrationPoints[gridId] = pointData;
+                    }
                 }
                 
                 // TPS 캐시 무효화 (world3D 좌표는 저장된 원본 그대로 유지 → 완료 버튼과 동일한 동작)
@@ -3171,15 +4367,17 @@
                 updateCalibCount();
                 updateCalibOverlay();
                 redrawFieldGrid();
-                
+                generateStripePoints(); // 줄무늬 포인트 재생성 (로드된 설정 반영)
+                refreshMinimap(); // 미니맵 전체 갱신 (규격 + 줄무늬 + 포인트)
+
                 // 코너 4개가 있으면 코트 표시 및 전술 버튼 활성화
-                if (calibrationPoints.TL && calibrationPoints.TR && calibrationPoints.BL && calibrationPoints.BR) {
+                if (hasCornerPoints()) {
                     showGrid = true;
                     document.getElementById('grid-toggle-btn').style.display = 'block';
                     document.getElementById('grid-toggle-btn').classList.add('active');
                     document.getElementById('tactics-btn').style.display = 'block';
                 }
-                
+
                 showToast(`✓ 캘리브레이션 불러옴 (${Object.keys(calibrationPoints).length}점, 제약 적용됨)`);
                 return true;
             } catch (e) {
