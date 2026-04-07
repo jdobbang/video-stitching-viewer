@@ -521,6 +521,10 @@
             <button class="btn" id="tracker-toggle-btn" style="flex: 1; font-size: 11px;">📡 트래킹</button>
         </div>
         <div id="tracker-info" style="font-size: 10px; color: #4ade80; margin-top: 4px; display: none; text-align: center;"></div>
+        <div id="tracker-select-btns" style="display: none; gap: 6px; margin-top: 4px;">
+            <button class="btn" id="tracker-select-all-btn" style="flex: 1; font-size: 10px;">✅ 전체 선택</button>
+            <button class="btn" id="tracker-deselect-all-btn" style="flex: 1; font-size: 10px;">❌ 전체 해제</button>
+        </div>
         
         <div style="display: flex; gap: 6px; margin-top: 6px; align-items: center;">
             <div style="flex: 1; display: flex; align-items: center; gap: 4px;">
@@ -1289,7 +1293,9 @@
             document.getElementById('tactics-clear-btn').addEventListener('click', clearTacticsPoints);
             document.getElementById('tactics-undo-btn').addEventListener('click', undoTacticsPoint);
             document.getElementById('tracker-toggle-btn').addEventListener('click', toggleTracking);
-            
+            document.getElementById('tracker-select-all-btn').addEventListener('click', selectAllDetections);
+            document.getElementById('tracker-deselect-all-btn').addEventListener('click', deselectAllTrackers);
+
             // 전술 팀 선택 버튼
             document.querySelectorAll('.tactics-color-btn').forEach(btn => {
                 btn.addEventListener('click', () => {
@@ -1647,8 +1653,8 @@
                 _yoloRunning = true;
                 updateYoloTrackers().finally(() => { _yoloRunning = false; });
             }
-            // bbox 오버레이는 매 프레임 항상 갱신 (카메라 이동에 따라)
-            if (isTracking && trackers.length > 0) renderTrackerBboxOverlay();
+            // bbox 오버레이는 매 프레임 항상 갱신 (미선택 detection + 선택된 tracker 모두)
+            if (isTracking && (trackers.length > 0 || yoloDetections.length > 0)) renderTrackerBboxOverlay();
         }
         
         // ============ 캘리브레이션 패널 드래그 ============
@@ -3347,7 +3353,8 @@
         let isTracking = false;
         let _trackFrame = 0;
         let _yoloRunning = false;
-        let trackers = []; // [{ id, cx, cy, w, h, pointIndex, team, color, lost, lostCount }]
+        let trackers = []; // 선택된 트래커만 [{ id, cx, cy, w, h, score, pointIndex, team, color, lost, lostCount, uvX, uvY }]
+        let yoloDetections = []; // 매 프레임 YOLO 전체 검출 결과
         let trackIdCounter = 0;
         let trackCanvas = null;
         let trackCtx = null;
@@ -3356,10 +3363,10 @@
         let yoloSession = null;
         let yoloModelName = '';
         const YOLO_INPUT_SIZE = 640;
-        const YOLO_CONF_THRESH = 0.35;
-        const YOLO_IOU_THRESH = 0.45;
+        const YOLO_CONF_THRESH = 0.1;
+        const YOLO_IOU_THRESH = 0.1;
         const YOLO_PERSON_CLASS = 0; // COCO person class
-        const TRACK_IOU_THRESH = 0.25;
+        const TRACK_IOU_THRESH = 0.1;
         const TRACK_MAX_LOST = 15; // lost 후 제거까지 프레임 수
 
         function initTrackCanvas() {
@@ -3642,8 +3649,18 @@
             const detections = await runYoloDetection();
             const vw = video.videoWidth, vh = video.videoHeight;
 
-            // IoU 매칭
-            const { matched, unmatchedDets, unmatchedTrackers } = matchDetections(trackers, detections);
+            // 전체 검출 결과 저장 (bbox 표시용)
+            yoloDetections = detections;
+
+            // 선택된 트래커가 없으면 매칭 스킵
+            if (trackers.length === 0) {
+                const infoEl = document.getElementById('tracker-info');
+                infoEl.textContent = `YOLO: ${detections.length}명 검출 | 클릭하여 선수 선택`;
+                return;
+            }
+
+            // IoU 매칭 — 선택된 trackers만 대상
+            const { matched, unmatchedTrackers } = matchDetections(trackers, detections);
 
             // 1) 매칭된 트래커 업데이트
             for (const m of matched) {
@@ -3680,47 +3697,7 @@
                 }
             }
 
-            // 3) 미매칭 detection → 새 트래커 생성
-            for (const j of unmatchedDets) {
-                const det = detections[j];
-                // bbox 하단 중점 → 필드 좌표
-                const footUvX = det.cx / vw;
-                const footUvY = 1 - (det.cy + det.h / 2) / vh;
-                let fieldX = null, fieldY = null;
-                if (uvTPS.valid && uvTPS.uvToField) {
-                    const fc = applyNormalizedTPS(uvTPS.uvToField, footUvX, footUvY);
-                    if (fc && fc.x >= -5 && fc.x <= fieldWidth + 5 && fc.y >= -5 && fc.y <= fieldHeight + 5) {
-                        fieldX = fc.x;
-                        fieldY = fc.y;
-                    }
-                }
-                if (fieldX === null) continue; // 필드 밖이면 스킵
-
-                // 전술 포인트 생성
-                const point = {
-                    id: ++tacticsIdCounter,
-                    fieldX, fieldY,
-                    team: currentTacticsTeam,
-                    color: teamColors[currentTacticsTeam]
-                };
-                tacticsPoints.push(point);
-
-                trackers.push({
-                    id: ++trackIdCounter,
-                    cx: det.cx,
-                    cy: det.cy,
-                    w: det.w,
-                    h: det.h,
-                    score: det.score,
-                    uvX: det.cx / vw,
-                    uvY: 1 - det.cy / vh,
-                    pointIndex: tacticsPoints.length - 1,
-                    team: currentTacticsTeam,
-                    color: teamColors[currentTacticsTeam],
-                    lost: false,
-                    lostCount: 0
-                });
-            }
+            // 3) 미매칭 detection → 새 트래커 자동 생성하지 않음 (사용자 선택 방식)
 
             // 4) lost 트래커 제거
             const lostIndices = new Set();
@@ -3728,14 +3705,11 @@
                 if (trackers[i].lost) lostIndices.add(i);
             }
             if (lostIndices.size > 0) {
-                // tacticsPoints에서도 제거 (역순)
                 const lostPointIndices = [...lostIndices].map(i => trackers[i].pointIndex).sort((a, b) => b - a);
                 for (const pi of lostPointIndices) {
                     tacticsPoints.splice(pi, 1);
                 }
-                // 트래커 제거
                 const newTrackers = trackers.filter((_, i) => !lostIndices.has(i));
-                // pointIndex 재매핑
                 for (const tr of newTrackers) {
                     let shift = 0;
                     for (const pi of lostPointIndices) {
@@ -3757,6 +3731,65 @@
             infoEl.textContent = `YOLO: ${detections.length}명 검출 (avg ${avgConf}%) | 추적: ${trackers.length}명`;
         }
 
+        // --- detection 클릭 → 트래커로 선택 ---
+        function selectDetectionAsTracker(det) {
+            const vw = video.videoWidth, vh = video.videoHeight;
+
+            // bbox 하단 중점 → 필드 좌표
+            const footUvX = det.cx / vw;
+            const footUvY = 1 - (det.cy + det.h / 2) / vh;
+            let fieldX = null, fieldY = null;
+            if (uvTPS.valid && uvTPS.uvToField) {
+                const fc = applyNormalizedTPS(uvTPS.uvToField, footUvX, footUvY);
+                if (fc && fc.x >= -5 && fc.x <= fieldWidth + 5 && fc.y >= -5 && fc.y <= fieldHeight + 5) {
+                    fieldX = fc.x;
+                    fieldY = fc.y;
+                }
+            }
+            if (fieldX === null) {
+                showToast('⚠️ 필드 영역 밖입니다');
+                return;
+            }
+
+            // 전술 포인트 생성
+            const point = {
+                id: ++tacticsIdCounter,
+                fieldX, fieldY,
+                team: currentTacticsTeam,
+                color: teamColors[currentTacticsTeam]
+            };
+            tacticsPoints.push(point);
+
+            trackers.push({
+                id: ++trackIdCounter,
+                cx: det.cx,
+                cy: det.cy,
+                w: det.w,
+                h: det.h,
+                score: det.score,
+                uvX: det.cx / vw,
+                uvY: 1 - det.cy / vh,
+                pointIndex: tacticsPoints.length - 1,
+                team: currentTacticsTeam,
+                color: teamColors[currentTacticsTeam],
+                lost: false,
+                lostCount: 0
+            });
+
+            updateTacticsMinimap();
+            document.getElementById('tactics-count').textContent = tacticsPoints.length;
+            renderTrackerBboxOverlay();
+            showToast(`✅ 선수 #${trackIdCounter} 선택됨`);
+        }
+
+        // --- detection이 이미 트래커로 선택되었는지 체크 ---
+        function isDetectionAlreadyTracked(det) {
+            for (const tr of trackers) {
+                if (calcIoU(tr, det) > 0.5) return true;
+            }
+            return false;
+        }
+
         // --- UV → 스크린 좌표 (트래커용) ---
         function trackerUvToScreen(uvX, uvY) {
             return uvToScreen({ u: uvX, v: uvY }, true);
@@ -3767,15 +3800,68 @@
             const layer = document.getElementById('tracker-bbox-layer');
             if (!layer) return;
             layer.innerHTML = '';
-            if (trackers.length === 0) return;
 
             const vw = video.videoWidth || 1, vh = video.videoHeight || 1;
 
+            // 1) 미선택 detection — 회색 반투명 bbox (클릭 가능)
+            for (let i = 0; i < yoloDetections.length; i++) {
+                const det = yoloDetections[i];
+                if (isDetectionAlreadyTracked(det)) continue;
+
+                const uvX = det.cx / vw;
+                const uvY = 1 - det.cy / vh;
+                const center = trackerUvToScreen(uvX, uvY);
+                if (!center) continue;
+
+                const duW = (det.w / 2) / vw;
+                const duH = (det.h / 2) / vh;
+                const cornerR = trackerUvToScreen(uvX + duW, uvY);
+                const cornerB = trackerUvToScreen(uvX, uvY - duH);
+                const rw = cornerR ? Math.abs(cornerR.x - center.x) * 2 : 30;
+                const rh = cornerB ? Math.abs(cornerB.y - center.y) * 2 : 50;
+
+                // 클릭 가능 영역 (투명 fill로 클릭 감지)
+                const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                g.style.cursor = 'pointer';
+
+                const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+                rect.setAttribute('x', center.x - rw / 2);
+                rect.setAttribute('y', center.y - rh / 2);
+                rect.setAttribute('width', rw);
+                rect.setAttribute('height', rh);
+                rect.setAttribute('fill', 'rgba(255,255,255,0.05)');
+                rect.setAttribute('stroke', '#888');
+                rect.setAttribute('stroke-width', '1.5');
+                rect.setAttribute('stroke-opacity', '0.6');
+                rect.setAttribute('stroke-dasharray', '4 2');
+                rect.setAttribute('rx', '2');
+                g.appendChild(rect);
+
+                // confidence 라벨
+                const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                txt.setAttribute('x', center.x - rw / 2 + 2);
+                txt.setAttribute('y', center.y - rh / 2 - 3);
+                txt.setAttribute('fill', '#aaa');
+                txt.setAttribute('font-size', '10');
+                txt.setAttribute('font-family', 'sans-serif');
+                txt.textContent = `${(det.score * 100).toFixed(0)}%`;
+                g.appendChild(txt);
+
+                // 클릭 이벤트 — detection을 트래커로 선택
+                const detRef = det;
+                g.addEventListener('pointerup', (e) => {
+                    e.stopPropagation();
+                    selectDetectionAsTracker(detRef);
+                });
+
+                layer.appendChild(g);
+            }
+
+            // 2) 선택된 tracker — 컬러 bbox
             for (const tr of trackers) {
                 const center = trackerUvToScreen(tr.uvX, tr.uvY);
                 if (!center) continue;
 
-                // bbox 크기를 스크린 스케일로 변환
                 const duW = (tr.w / 2) / vw;
                 const duH = (tr.h / 2) / vh;
                 const cornerR = trackerUvToScreen(tr.uvX + duW, tr.uvY);
@@ -3795,7 +3881,7 @@
                 rect.setAttribute('height', rh);
                 rect.setAttribute('fill', 'none');
                 rect.setAttribute('stroke', color);
-                rect.setAttribute('stroke-width', '2');
+                rect.setAttribute('stroke-width', '2.5');
                 rect.setAttribute('stroke-opacity', opacity);
                 if (isLost) rect.setAttribute('stroke-dasharray', '4 2');
                 rect.setAttribute('rx', '2');
@@ -3837,26 +3923,56 @@
             const infoEl = document.getElementById('tracker-info');
             btn.classList.toggle('active', isTracking);
 
+            const selectBtns = document.getElementById('tracker-select-btns');
             if (isTracking) {
                 trackers = [];
+                yoloDetections = [];
                 trackIdCounter = 0;
                 _yoloRunning = false;
                 infoEl.style.display = 'block';
-                infoEl.textContent = 'YOLO 검출 시작...';
-                showToast('🎯 YOLO 트래킹 시작');
+                infoEl.textContent = 'YOLO 검출 시작... 클릭하여 선수 선택';
+                selectBtns.style.display = 'flex';
+                showToast('🎯 YOLO 트래킹 시작 — bbox 클릭으로 선수 선택');
             } else {
                 trackers = [];
+                yoloDetections = [];
                 trackIdCounter = 0;
                 _yoloRunning = false;
                 const layer = document.getElementById('tracker-bbox-layer');
                 if (layer) layer.innerHTML = '';
                 infoEl.style.display = 'none';
+                selectBtns.style.display = 'none';
                 // 트래커가 만든 전술 포인트도 정리
                 tacticsPoints = [];
                 updateTacticsMinimap();
                 document.getElementById('tactics-count').textContent = '0';
                 showToast('🎯 YOLO 트래킹 중지');
             }
+        }
+
+        // --- 전체 선택: 현재 검출된 모든 detection을 트래커로 등록 ---
+        function selectAllDetections() {
+            if (yoloDetections.length === 0) {
+                showToast('⚠️ 검출된 선수가 없습니다');
+                return;
+            }
+            let added = 0;
+            for (const det of yoloDetections) {
+                if (isDetectionAlreadyTracked(det)) continue;
+                selectDetectionAsTracker(det);
+                added++;
+            }
+            showToast(`✅ ${added}명 전체 선택됨`);
+        }
+
+        // --- 전체 해제: 모든 트래커 제거 ---
+        function deselectAllTrackers() {
+            trackers = [];
+            tacticsPoints = [];
+            updateTacticsMinimap();
+            document.getElementById('tactics-count').textContent = '0';
+            renderTrackerBboxOverlay();
+            showToast('❌ 전체 해제됨');
         }
 
         function updateTacticsMinimap() {
