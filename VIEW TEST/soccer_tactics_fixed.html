@@ -32,6 +32,9 @@
             gap: 16px;
             align-items: center;
             font-size: 13px;
+            z-index: 200;
+            pointer-events: auto;
+            position: relative;
         }
         
         #controls {
@@ -497,17 +500,47 @@
     </div>
     
     <!-- 전술 미니맵 패널 -->
-    <div class="panel" id="tactics-panel" style="display: none; top: 80px; right: 20px; width: 520px; z-index: 110;">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+    <div class="panel" id="tactics-panel" style="display: none; top: 80px; right: 20px; width: 520px; min-width: 300px; z-index: 110; position: fixed;">
+        <div id="tactics-drag-handle" style="display: flex; justify-content: space-between; align-items: center; margin: -16px -20px 8px -20px; padding: 10px 16px; cursor: grab; border-bottom: 1px solid rgba(255,255,255,0.1); user-select: none;">
             <span style="font-size: 14px; font-weight: bold;">🎯 전술 미니맵</span>
-            <button class="btn" id="tactics-close-btn" style="width: auto; padding: 4px 8px; font-size: 12px;">✕</button>
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 10px; color: rgba(255,255,255,0.4);">⠿ 드래그</span>
+                <button class="btn" id="tactics-close-btn" style="width: auto; padding: 4px 8px; font-size: 12px;">✕</button>
+            </div>
+        </div>
+        <!-- 리사이즈 핸들 (우하단) -->
+        <div id="tactics-resize-handle" style="position: absolute; bottom: 0; right: 0; width: 16px; height: 16px; cursor: nwse-resize; z-index: 5;">
+            <svg width="16" height="16" viewBox="0 0 16 16" style="opacity: 0.4;">
+                <line x1="14" y1="4" x2="4" y2="14" stroke="white" stroke-width="1.5"/>
+                <line x1="14" y1="8" x2="8" y2="14" stroke="white" stroke-width="1.5"/>
+                <line x1="14" y1="12" x2="12" y2="14" stroke="white" stroke-width="1.5"/>
+            </svg>
         </div>
 
         <div style="background: #1a472a; border-radius: 8px; padding: 10px; position: relative;">
             <svg id="tactics-minimap" viewBox="0 0 220 145" style="width: 100%; height: auto; aspect-ratio: 220/145;">
+                <defs>
+                    <!-- 패스 화살촉 (노란) -->
+                    <marker id="arrow-pass" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+                        <path d="M 0 0 L 10 5 L 0 10 Z" fill="#facc15"/>
+                    </marker>
+                    <!-- 침투 화살촉 (빨간) -->
+                    <marker id="arrow-run" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+                        <path d="M 0 0 L 10 5 L 0 10 Z" fill="#f87171"/>
+                    </marker>
+                    <!-- 드래그 중 임시 화살촉 -->
+                    <marker id="arrow-temp" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+                        <path d="M 0 0 L 10 5 L 0 10 Z" fill="rgba(255,255,255,0.5)"/>
+                    </marker>
+                </defs>
                 <!-- 동적 필드 라인 + 줄무늬 (JS에서 그림) -->
                 <g id="tactics-field-lines"></g>
                 <g id="tactics-stripe-lines"></g>
+
+                <!-- 화살표 레이어 -->
+                <g id="tactics-arrows"></g>
+                <!-- 드래그 중 임시 화살표 -->
+                <g id="tactics-arrow-temp"></g>
 
                 <!-- 전술 포인트들이 여기에 그려짐 -->
                 <g id="tactics-points"></g>
@@ -538,8 +571,21 @@
             <button class="btn tactics-color-btn" data-team="ball" style="width: 40px; font-size: 16px;">⚽</button>
         </div>
         
+        <div style="display: flex; gap: 6px; margin-top: 6px;">
+            <button class="btn" id="arrow-pass-btn" style="flex: 1; font-size: 11px; background: rgba(250,204,21,0.2); border: 1px solid #facc15; color: #facc15;">➜ 패스</button>
+            <button class="btn" id="arrow-run-btn" style="flex: 1; font-size: 11px; background: rgba(248,113,113,0.2); border: 1px solid #f87171; color: #f87171;">⇢ 침투</button>
+            <button class="btn" id="arrow-clear-btn" style="flex: 1; font-size: 11px;">🗑 화살표 삭제</button>
+            <button class="btn" id="arrow-undo-btn" style="flex: 1; font-size: 11px;">↩ 화살표 취소</button>
+        </div>
+        <div style="display: flex; gap: 4px; margin-top: 6px; align-items: center;">
+            <button class="btn" id="gif-start-btn" style="flex: 1; font-size: 11px;">📹 시작 저장</button>
+            <button class="btn" id="gif-end-btn" style="flex: 1; font-size: 11px;">📍 끝 찍기</button>
+            <button class="btn" id="gif-reset-btn" style="width: 30px; font-size: 11px;">🗑</button>
+            <button class="btn" id="gif-generate-btn" style="flex: 1; font-size: 11px; background: rgba(168,85,247,0.3); border: 1px solid #a855f7; color: #a855f7;">💾 GIF 저장</button>
+        </div>
+        <div id="gif-status" style="font-size: 10px; color: #a855f7; margin-top: 4px; text-align: center; display: none;"></div>
         <div style="font-size: 10px; color: #888; margin-top: 8px; text-align: center;">
-            클릭→포인트 | 트래킹ON+드래그→자동추적 | 미니맵 드래그→위치조정 | <span id="tactics-count">0</span>개
+            미니맵 드래그→화살표 그리기 | <span id="tactics-count">0</span>개 검출
         </div>
     </div>
     
@@ -588,6 +634,7 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.21.0/dist/ort.min.js"></script>
+    <!-- 애니메이션은 브라우저 네이티브 MediaRecorder 사용 -->
     <script>
         let scene, camera, renderer, mesh, videoTexture, video;
         let currentMode = 'cylinder';
@@ -961,13 +1008,13 @@
 
         // 페이지 로드 시 로컬 ONNX 모델 자동 로드
         (async function autoLoadYolo() {
-            const modelPath = '../asset/yolo26n.onnx';
+            const modelPath = '../asset/yolo26n_finetuned.onnx';
             try {
                 const resp = await fetch(modelPath);
                 if (resp.ok) {
                     const buf = await resp.arrayBuffer();
-                    await loadYoloModel(buf, 'yolo26n.onnx');
-                    document.getElementById('onnx-file-name').textContent = '✓ yolo26n.onnx (자동 로드)';
+                    await loadYoloModel(buf, 'yolo26n_finetuned.onnx');
+                    document.getElementById('onnx-file-name').textContent = '✓ yolo26n_finetuned.onnx (자동 로드)';
                     document.getElementById('onnx-file-name').style.display = 'block';
                 }
             } catch (e) {
@@ -1080,13 +1127,16 @@
                 const time = (e.target.value / 100) * video.duration;
                 video.currentTime = time;
             });
-            // range 클릭 시 해당 위치로 바로 점프 (기본 동작은 드래그만 지원하는 브라우저 대응)
+            // range 클릭 시 해당 위치로 바로 점프 (모든 모드에서 동작 보장)
             progress.addEventListener('mousedown', (e) => {
+                e.stopPropagation(); // 다른 모드의 이벤트 간섭 방지
                 const rect = progress.getBoundingClientRect();
                 const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
                 progress.value = ratio * 100;
                 video.currentTime = ratio * video.duration;
             });
+            progress.addEventListener('click', (e) => { e.stopPropagation(); });
+            progress.addEventListener('pointerdown', (e) => { e.stopPropagation(); });
             
             speedSelect.addEventListener('change', (e) => {
                 video.playbackRate = parseFloat(e.target.value);
@@ -1293,8 +1343,7 @@
             document.getElementById('tactics-clear-btn').addEventListener('click', clearTacticsPoints);
             document.getElementById('tactics-undo-btn').addEventListener('click', undoTacticsPoint);
             document.getElementById('tracker-toggle-btn').addEventListener('click', toggleTracking);
-            document.getElementById('tracker-select-all-btn').addEventListener('click', selectAllDetections);
-            document.getElementById('tracker-deselect-all-btn').addEventListener('click', deselectAllTrackers);
+            // tracker select/deselect 버튼 제거됨 (detection only)
 
             // 전술 팀 선택 버튼
             document.querySelectorAll('.tactics-color-btn').forEach(btn => {
@@ -1505,6 +1554,7 @@
             if (Math.sqrt(dx * dx + dy * dy) < 5) {
                 // 전술 모드: 포인트 추가 (YOLO 트래킹 중에도 수동 추가 가능)
                 if (isTacticsMode) {
+                    if (gifMode === 'edit') return; // edit 모드에서는 포인트 생성 차단
                     addTacticsPoint(event.clientX, event.clientY);
                     return;
                 }
@@ -1648,13 +1698,13 @@
             // 필드 라인 + 키포인트 매 프레임 재투영
             updateFieldLinesOverlay();
             updateCalibOverlay();
-            // YOLO 트래커: 5프레임마다 비동기 추론 (재생 중만)
+            // YOLO 검출: 5프레임마다 비동기 추론 (재생 중만)
             if (isTracking && yoloSession && !_yoloRunning && !video.paused && _trackFrame++ % 5 === 0) {
                 _yoloRunning = true;
-                updateYoloTrackers().finally(() => { _yoloRunning = false; });
+                updateYoloDetections().finally(() => { _yoloRunning = false; });
             }
-            // bbox 오버레이는 매 프레임 항상 갱신 (미선택 detection + 선택된 tracker 모두)
-            if (isTracking && (trackers.length > 0 || yoloDetections.length > 0)) renderTrackerBboxOverlay();
+            // detection bbox 오버레이 매 프레임 갱신
+            if (isTracking && yoloDetections.length > 0) renderDetectionBboxOverlay();
         }
         
         // ============ 캘리브레이션 패널 드래그 ============
@@ -1691,7 +1741,73 @@
 
             window.addEventListener('mouseup', () => { dragging = false; });
         })();
-        
+
+        // ============ 미니맵 패널 드래그 + 리사이즈 ============
+        (function() {
+            const panel  = document.getElementById('tactics-panel');
+            const handle = document.getElementById('tactics-drag-handle');
+            const resizeHandle = document.getElementById('tactics-resize-handle');
+            if (!panel || !handle) return;
+
+            // --- 드래그 ---
+            let dragging = false, ox = 0, oy = 0;
+
+            handle.addEventListener('mousedown', (e) => {
+                if (e.button !== 0) return;
+                dragging = true;
+                const rect = panel.getBoundingClientRect();
+                panel.style.left = rect.left + 'px';
+                panel.style.top  = rect.top  + 'px';
+                panel.style.right = 'auto';
+                panel.style.transform = 'none';
+                ox = e.clientX - rect.left;
+                oy = e.clientY - rect.top;
+                handle.style.cursor = 'grabbing';
+                e.preventDefault();
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (!dragging) return;
+                let nx = e.clientX - ox;
+                let ny = e.clientY - oy;
+                nx = Math.max(0, Math.min(window.innerWidth  - panel.offsetWidth,  nx));
+                ny = Math.max(0, Math.min(window.innerHeight - panel.offsetHeight, ny));
+                panel.style.left = nx + 'px';
+                panel.style.top  = ny + 'px';
+            });
+
+            window.addEventListener('mouseup', () => {
+                if (dragging) handle.style.cursor = 'grab';
+                dragging = false;
+                resizing = false;
+            });
+
+            // --- 리사이즈 ---
+            let resizing = false, startW = 0, startH = 0, startX = 0, startY = 0;
+
+            resizeHandle.addEventListener('mousedown', (e) => {
+                if (e.button !== 0) return;
+                resizing = true;
+                const rect = panel.getBoundingClientRect();
+                panel.style.left = rect.left + 'px';
+                panel.style.top  = rect.top  + 'px';
+                panel.style.right = 'auto';
+                panel.style.transform = 'none';
+                startW = rect.width;
+                startH = rect.height;
+                startX = e.clientX;
+                startY = e.clientY;
+                e.preventDefault();
+                e.stopPropagation();
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (!resizing) return;
+                const newW = Math.max(300, startW + (e.clientX - startX));
+                panel.style.width = newW + 'px';
+            });
+        })();
+
         function showToast(msg) {
             const t = document.getElementById('toast');
             t.textContent = msg;
@@ -3303,21 +3419,36 @@
         }
         
         function addTacticsPoint(screenX, screenY) {
+            // GIF 모드 활성화 중에는 'place' 모드에서만 끝 포인트 추가, 그 외 차단
+            if (gifMode === 'edit') return;
+            if (gifMode === 'place') {
+                const fieldCoord = screenToField(screenX, screenY);
+                if (!fieldCoord) { showToast('⚠️ 필드 영역을 클릭하세요'); return; }
+                const color = teamColors[currentTacticsTeam];
+                gifEndPositions.push({ x: fieldCoord.x, y: fieldCoord.y, color });
+                renderGifKeyframePoints();
+                showToast(`끝 포인트 ${gifEndPositions.length}개`);
+                return;
+            }
+            // 시작 저장 후에는 명시적 모드 없이 포인트 생성 차단
+            if (gifStartPositions.length > 0) return;
+
             // 화면 좌표 → 필드 좌표 변환
             const fieldCoord = screenToField(screenX, screenY);
             if (!fieldCoord) {
                 showToast('⚠️ 필드 영역을 클릭하세요');
                 return;
             }
-            
+
+            const color = teamColors[currentTacticsTeam];
             const point = {
                 id: ++tacticsIdCounter,
                 fieldX: fieldCoord.x,
                 fieldY: fieldCoord.y,
                 team: currentTacticsTeam,
-                color: teamColors[currentTacticsTeam]
+                color
             };
-            
+
             tacticsPoints.push(point);
             updateTacticsMinimap();
             document.getElementById('tactics-count').textContent = tacticsPoints.length;
@@ -3325,17 +3456,15 @@
         
         function clearTacticsPoints() {
             tacticsPoints = [];
-            trackers = [];
-            trackIdCounter = 0;
-            isTracking = false;
-            _yoloRunning = false;
-            document.getElementById('tracker-toggle-btn').classList.remove('active');
-            document.getElementById('tracker-info').style.display = 'none';
-            const bboxLayer = document.getElementById('tracker-bbox-layer');
-            if (bboxLayer) bboxLayer.innerHTML = '';
+            // 화살표 초기화
+            tacticsArrows = [];
+            renderTacticsArrows();
+            // GIF 키프레임 초기화
+            resetGifState();
+            // 미니맵 갱신
             updateTacticsMinimap();
             document.getElementById('tactics-count').textContent = '0';
-            showToast('🗑️ 전술 포인트 전체 삭제됨');
+            showToast('전체 삭제 완료');
         }
         
         function undoTacticsPoint() {
@@ -3353,11 +3482,10 @@
         let isTracking = false;
         let _trackFrame = 0;
         let _yoloRunning = false;
-        let trackers = []; // 선택된 트래커만 [{ id, cx, cy, w, h, score, pointIndex, team, color, lost, lostCount, uvX, uvY }]
         let yoloDetections = []; // 매 프레임 YOLO 전체 검출 결과
-        let trackIdCounter = 0;
         let trackCanvas = null;
         let trackCtx = null;
+        let cropBox = null; // { x, y, w, h } - 최초 프레임에서 계산된 non-black 영역
 
         // YOLO 모델
         let yoloSession = null;
@@ -3365,9 +3493,8 @@
         const YOLO_INPUT_SIZE = 640;
         const YOLO_CONF_THRESH = 0.1;
         const YOLO_IOU_THRESH = 0.1;
-        const YOLO_PERSON_CLASS = 0; // COCO person class
-        const TRACK_IOU_THRESH = 0.1;
-        const TRACK_MAX_LOST = 15; // lost 후 제거까지 프레임 수
+        const YOLO_DETECT_CLASSES = new Set([0, 1, 2]); // 0=ball, 1=player, 2=refere
+        const YOLO_NUM_CLASSES = 3; // fine-tuned model classes
 
         function initTrackCanvas() {
             if (trackCanvas) return;
@@ -3393,15 +3520,50 @@
             }
         }
 
+        // --- 최초 프레임에서 non-black 영역 계산 ---
+        function computeCropBox() {
+            initTrackCanvas();
+            const vw = video.videoWidth, vh = video.videoHeight;
+            trackCanvas.width = vw;
+            trackCanvas.height = vh;
+            trackCtx.drawImage(video, 0, 0, vw, vh);
+            const imgData = trackCtx.getImageData(0, 0, vw, vh);
+            const d = imgData.data;
+            const THRESH = 30; // R+G+B > 30 이면 non-black
+
+            let minX = vw, minY = vh, maxX = 0, maxY = 0;
+            for (let y = 0; y < vh; y++) {
+                for (let x = 0; x < vw; x++) {
+                    const idx = (y * vw + x) * 4;
+                    if (d[idx] + d[idx + 1] + d[idx + 2] > THRESH) {
+                        if (x < minX) minX = x;
+                        if (x > maxX) maxX = x;
+                        if (y < minY) minY = y;
+                        if (y > maxY) maxY = y;
+                    }
+                }
+            }
+
+            if (maxX > minX && maxY > minY) {
+                cropBox = { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 };
+                console.log('CropBox computed:', cropBox);
+            } else {
+                cropBox = { x: 0, y: 0, w: vw, h: vh };
+                console.warn('CropBox fallback to full frame');
+            }
+        }
+
         // --- 전처리: 비디오 프레임 → YOLO 입력 텐서 ---
         function preprocessFrame() {
-            const vw = video.videoWidth, vh = video.videoHeight;
-            const sz = YOLO_INPUT_SIZE;
+            if (!cropBox) computeCropBox();
 
-            // Letterbox resize
-            const scale = Math.min(sz / vw, sz / vh);
-            const nw = Math.round(vw * scale);
-            const nh = Math.round(vh * scale);
+            const sz = YOLO_INPUT_SIZE;
+            const srcW = cropBox.w, srcH = cropBox.h;
+
+            // Letterbox resize (crop 영역 기준)
+            const scale = Math.min(sz / srcW, sz / srcH);
+            const nw = Math.round(srcW * scale);
+            const nh = Math.round(srcH * scale);
             const padX = Math.round((sz - nw) / 2);
             const padY = Math.round((sz - nh) / 2);
 
@@ -3410,7 +3572,8 @@
             trackCanvas.height = sz;
             trackCtx.fillStyle = '#808080';
             trackCtx.fillRect(0, 0, sz, sz);
-            trackCtx.drawImage(video, padX, padY, nw, nh);
+            // crop 영역만 그리기
+            trackCtx.drawImage(video, cropBox.x, cropBox.y, cropBox.w, cropBox.h, padX, padY, nw, nh);
 
             const imgData = trackCtx.getImageData(0, 0, sz, sz);
             const d = imgData.data;
@@ -3466,9 +3629,8 @@
                 const dim1 = shape[1]; // N or channels
                 const dim2 = shape[2]; // channels or N
 
-                // [1, N, 6] 또는 [1, N, 7]: NMS 내장 형식 (YOLO26 등)
-                // 각 행 = [x1, y1, x2, y2, conf, class] 또는 [x1, y1, x2, y2, conf, class, ...]
-                if (dim2 <= 7) {
+                // [1, N, 6]: NMS 내장 형식 (dim2=6이고 dim1이 큼)
+                if (dim2 === 6 && dim1 > 7) {
                     const N = dim1;
                     const cols = dim2;
                     console.log('YOLO NMS-built-in [1,N,6] format: N=', N, 'cols=', cols);
@@ -3483,19 +3645,19 @@
                         const cls = Math.round(data[offset + 5]);
 
                         if (score < YOLO_CONF_THRESH) continue;
-                        if (cls !== YOLO_PERSON_CLASS) continue;
+                        if (!YOLO_DETECT_CLASSES.has(cls)) continue;
 
-                        // xyxy → cxcywh, letterbox → 원본 비디오 좌표
-                        const cx = ((x1 + x2) / 2 - padX) / scale;
-                        const cy = ((y1 + y2) / 2 - padY) / scale;
+                        // xyxy → cxcywh, letterbox → crop → 원본 비디오 좌표
+                        const cx = ((x1 + x2) / 2 - padX) / scale + cropBox.x;
+                        const cy = ((y1 + y2) / 2 - padY) / scale + cropBox.y;
                         const w = (x2 - x1) / scale;
                         const h = (y2 - y1) / scale;
 
                         detections.push({ cx, cy, w, h, score });
                     }
                 }
-                // [1, N, 84+]: transposed 형식 [1, numBoxes, 4+numClasses]
-                else if (dim2 > 7 && dim1 > dim2) {
+                // [1, N, C]: transposed 형식 [1, numBoxes, 4+numClasses] (dim1 > dim2)
+                else if (dim1 > dim2 && dim2 > 6) {
                     const numBoxes = dim1, channels = dim2;
                     const numClasses = channels - 4;
                     console.log('YOLO transposed [1,N,C] format: N=', numBoxes, 'C=', channels);
@@ -3512,16 +3674,16 @@
                             const s = data[offset + 4 + c];
                             if (s > maxScore) { maxScore = s; maxCls = c; }
                         }
-                        if (maxCls !== YOLO_PERSON_CLASS || maxScore < YOLO_CONF_THRESH) continue;
+                        if (!YOLO_DETECT_CLASSES.has(maxCls) || maxScore < YOLO_CONF_THRESH) continue;
 
-                        const vx = (cx - padX) / scale;
-                        const vy = (cy - padY) / scale;
+                        const vx = (cx - padX) / scale + cropBox.x;
+                        const vy = (cy - padY) / scale + cropBox.y;
                         const vw = w / scale;
                         const vh = h / scale;
                         detections.push({ cx: vx, cy: vy, w: vw, h: vh, score: maxScore });
                     }
                 }
-                // [1, 84, 8400]: 표준 ultralytics 형식
+                // [1, C, N]: 표준 ultralytics 형식 (e.g. [1, 7, 8400] or [1, 84, 8400])
                 else {
                     const channels = dim1, numBoxes = dim2;
                     const numClasses = channels - 4;
@@ -3538,10 +3700,10 @@
                             const s = data[(4 + c) * numBoxes + i];
                             if (s > maxScore) { maxScore = s; maxCls = c; }
                         }
-                        if (maxCls !== YOLO_PERSON_CLASS || maxScore < YOLO_CONF_THRESH) continue;
+                        if (!YOLO_DETECT_CLASSES.has(maxCls) || maxScore < YOLO_CONF_THRESH) continue;
 
-                        const vx = (cx - padX) / scale;
-                        const vy = (cy - padY) / scale;
+                        const vx = (cx - padX) / scale + cropBox.x;
+                        const vy = (cy - padY) / scale + cropBox.y;
                         const vw = w / scale;
                         const vh = h / scale;
                         detections.push({ cx: vx, cy: vy, w: vw, h: vh, score: maxScore });
@@ -3558,9 +3720,9 @@
                     const h  = data[i * 6 + 3];
                     const score = data[i * 6 + 4];
                     const cls = data[i * 6 + 5];
-                    if (cls !== YOLO_PERSON_CLASS || score < YOLO_CONF_THRESH) continue;
-                    const vx = (cx - padX) / scale;
-                    const vy = (cy - padY) / scale;
+                    if (!YOLO_DETECT_CLASSES.has(cls) || score < YOLO_CONF_THRESH) continue;
+                    const vx = (cx - padX) / scale + cropBox.x;
+                    const vy = (cy - padY) / scale + cropBox.y;
                     const vw = w / scale;
                     const vh = h / scale;
                     detections.push({ cx: vx, cy: vy, w: vw, h: vh, score });
@@ -3610,268 +3772,92 @@
             return union > 0 ? inter / union : 0;
         }
 
-        // --- IoU 매칭: 기존 trackers ↔ 새 detections ---
-        function matchDetections(prevTrackers, detections) {
-            const pairs = [];
-            for (let i = 0; i < prevTrackers.length; i++) {
-                for (let j = 0; j < detections.length; j++) {
-                    const iou = calcIoU(prevTrackers[i], detections[j]);
-                    if (iou > TRACK_IOU_THRESH) {
-                        pairs.push({ i, j, iou });
-                    }
-                }
-            }
-            pairs.sort((a, b) => b.iou - a.iou);
-
-            const usedT = new Set(), usedD = new Set();
-            const matched = []; // { trackerIdx, detIdx }
-            for (const p of pairs) {
-                if (usedT.has(p.i) || usedD.has(p.j)) continue;
-                matched.push({ trackerIdx: p.i, detIdx: p.j });
-                usedT.add(p.i);
-                usedD.add(p.j);
-            }
-            const unmatchedDets = [];
-            for (let j = 0; j < detections.length; j++) {
-                if (!usedD.has(j)) unmatchedDets.push(j);
-            }
-            const unmatchedTrackers = [];
-            for (let i = 0; i < prevTrackers.length; i++) {
-                if (!usedT.has(i)) unmatchedTrackers.push(i);
-            }
-            return { matched, unmatchedDets, unmatchedTrackers };
-        }
-
-        // --- 메인 트래킹 업데이트 (async) ---
-        async function updateYoloTrackers() {
-            if (!yoloSession || !video) return;
-
-            const detections = await runYoloDetection();
+        // --- bbox 하단 20%가 필드 영역과 겹치는지 체크 ---
+        function isDetectionOnField(det) {
+            if (!uvTPS.valid || !uvTPS.uvToField) return false;
             const vw = video.videoWidth, vh = video.videoHeight;
 
-            // 전체 검출 결과 저장 (bbox 표시용)
-            yoloDetections = detections;
+            // bbox 하단 20% 영역의 상단 경계 (위에서 80% 지점)
+            const checkY = det.cy + det.h * 0.3;
+            const uvX = det.cx / vw;
+            const uvY = 1 - checkY / vh;
 
-            // 선택된 트래커가 없으면 매칭 스킵
-            if (trackers.length === 0) {
-                const infoEl = document.getElementById('tracker-info');
-                infoEl.textContent = `YOLO: ${detections.length}명 검출 | 클릭하여 선수 선택`;
-                return;
-            }
+            const fc = applyNormalizedTPS(uvTPS.uvToField, uvX, uvY);
+            if (!fc) return false;
+            return fc.x >= -5 && fc.x <= fieldWidth + 5 && fc.y >= -5 && fc.y <= fieldHeight + 5;
+        }
 
-            // IoU 매칭 — 선택된 trackers만 대상
-            const { matched, unmatchedTrackers } = matchDetections(trackers, detections);
+        // --- detection foot → 필드 좌표 ---
+        function detectionToField(det) {
+            if (!uvTPS.valid || !uvTPS.uvToField) return null;
+            const vw = video.videoWidth, vh = video.videoHeight;
+            const footUvX = det.cx / vw;
+            const footUvY = 1 - (det.cy + det.h / 2) / vh;
+            const fc = applyNormalizedTPS(uvTPS.uvToField, footUvX, footUvY);
+            if (!fc) return null;
+            if (fc.x < -5 || fc.x > fieldWidth + 5 || fc.y < -5 || fc.y > fieldHeight + 5) return null;
+            return { x: Math.max(0, Math.min(fieldWidth, fc.x)), y: Math.max(0, Math.min(fieldHeight, fc.y)) };
+        }
 
-            // 1) 매칭된 트래커 업데이트
-            for (const m of matched) {
-                const tr = trackers[m.trackerIdx];
-                const det = detections[m.detIdx];
-                tr.cx = det.cx;
-                tr.cy = det.cy;
-                tr.w = det.w;
-                tr.h = det.h;
-                tr.score = det.score;
-                tr.lost = false;
-                tr.lostCount = 0;
+        // --- 메인 검출 업데이트 (async) ---
+        async function updateYoloDetections() {
+            if (!yoloSession || !video) return;
 
-                // bbox 하단 중점 → UV → 필드 좌표
-                const footUvX = tr.cx / vw;
-                const footUvY = 1 - (tr.cy + tr.h / 2) / vh;
-                tr.uvX = tr.cx / vw;
-                tr.uvY = 1 - tr.cy / vh;
+            const allDetections = await runYoloDetection();
 
-                if (uvTPS.valid && uvTPS.uvToField) {
-                    const fc = applyNormalizedTPS(uvTPS.uvToField, footUvX, footUvY);
-                    if (fc && fc.x >= -5 && fc.x <= fieldWidth + 5 && fc.y >= -5 && fc.y <= fieldHeight + 5) {
-                        tacticsPoints[tr.pointIndex].fieldX = fc.x;
-                        tacticsPoints[tr.pointIndex].fieldY = fc.y;
-                    }
+            // 필드 영역 겹침 필터: bbox 하단 20%가 필드와 겹쳐야 함
+            yoloDetections = allDetections.filter(det => isDetectionOnField(det));
+
+            // 미니맵 업데이트: detection foot → 필드 좌표
+            tacticsPoints = [];
+            for (const det of yoloDetections) {
+                const fc = detectionToField(det);
+                if (fc) {
+                    tacticsPoints.push({
+                        id: tacticsPoints.length + 1,
+                        fieldX: fc.x,
+                        fieldY: fc.y,
+                        team: 'home',
+                        color: '#4ade80'
+                    });
                 }
             }
-
-            // 2) 미매칭 트래커 → lost 카운트 증가
-            for (const i of unmatchedTrackers) {
-                trackers[i].lostCount++;
-                if (trackers[i].lostCount > TRACK_MAX_LOST) {
-                    trackers[i].lost = true;
-                }
-            }
-
-            // 3) 미매칭 detection → 새 트래커 자동 생성하지 않음 (사용자 선택 방식)
-
-            // 4) lost 트래커 제거
-            const lostIndices = new Set();
-            for (let i = trackers.length - 1; i >= 0; i--) {
-                if (trackers[i].lost) lostIndices.add(i);
-            }
-            if (lostIndices.size > 0) {
-                const lostPointIndices = [...lostIndices].map(i => trackers[i].pointIndex).sort((a, b) => b - a);
-                for (const pi of lostPointIndices) {
-                    tacticsPoints.splice(pi, 1);
-                }
-                const newTrackers = trackers.filter((_, i) => !lostIndices.has(i));
-                for (const tr of newTrackers) {
-                    let shift = 0;
-                    for (const pi of lostPointIndices) {
-                        if (tr.pointIndex > pi) shift++;
-                    }
-                    tr.pointIndex -= shift;
-                }
-                trackers = newTrackers;
-            }
-
             updateTacticsMinimap();
             document.getElementById('tactics-count').textContent = tacticsPoints.length;
 
             // 상태 표시
             const infoEl = document.getElementById('tracker-info');
-            const avgConf = detections.length > 0
-                ? (detections.reduce((s, d) => s + d.score, 0) / detections.length * 100).toFixed(0)
+            const avgConf = yoloDetections.length > 0
+                ? (yoloDetections.reduce((s, d) => s + d.score, 0) / yoloDetections.length * 100).toFixed(0)
                 : 0;
-            infoEl.textContent = `YOLO: ${detections.length}명 검출 (avg ${avgConf}%) | 추적: ${trackers.length}명`;
+            infoEl.textContent = `YOLO: ${allDetections.length}명 검출 → ${yoloDetections.length}명 필드 내 (avg ${avgConf}%)`;
         }
 
-        // --- detection 클릭 → 트래커로 선택 ---
-        function selectDetectionAsTracker(det) {
-            const vw = video.videoWidth, vh = video.videoHeight;
-
-            // bbox 하단 중점 → 필드 좌표
-            const footUvX = det.cx / vw;
-            const footUvY = 1 - (det.cy + det.h / 2) / vh;
-            let fieldX = null, fieldY = null;
-            if (uvTPS.valid && uvTPS.uvToField) {
-                const fc = applyNormalizedTPS(uvTPS.uvToField, footUvX, footUvY);
-                if (fc && fc.x >= -5 && fc.x <= fieldWidth + 5 && fc.y >= -5 && fc.y <= fieldHeight + 5) {
-                    fieldX = fc.x;
-                    fieldY = fc.y;
-                }
-            }
-            if (fieldX === null) {
-                showToast('⚠️ 필드 영역 밖입니다');
-                return;
-            }
-
-            // 전술 포인트 생성
-            const point = {
-                id: ++tacticsIdCounter,
-                fieldX, fieldY,
-                team: currentTacticsTeam,
-                color: teamColors[currentTacticsTeam]
-            };
-            tacticsPoints.push(point);
-
-            trackers.push({
-                id: ++trackIdCounter,
-                cx: det.cx,
-                cy: det.cy,
-                w: det.w,
-                h: det.h,
-                score: det.score,
-                uvX: det.cx / vw,
-                uvY: 1 - det.cy / vh,
-                pointIndex: tacticsPoints.length - 1,
-                team: currentTacticsTeam,
-                color: teamColors[currentTacticsTeam],
-                lost: false,
-                lostCount: 0
-            });
-
-            updateTacticsMinimap();
-            document.getElementById('tactics-count').textContent = tacticsPoints.length;
-            renderTrackerBboxOverlay();
-            showToast(`✅ 선수 #${trackIdCounter} 선택됨`);
-        }
-
-        // --- detection이 이미 트래커로 선택되었는지 체크 ---
-        function isDetectionAlreadyTracked(det) {
-            for (const tr of trackers) {
-                if (calcIoU(tr, det) > 0.5) return true;
-            }
-            return false;
-        }
-
-        // --- UV → 스크린 좌표 (트래커용) ---
-        function trackerUvToScreen(uvX, uvY) {
+        // --- UV → 스크린 좌표 ---
+        function detectionUvToScreen(uvX, uvY) {
             return uvToScreen({ u: uvX, v: uvY }, true);
         }
 
-        // --- 트래커 BBox 오버레이 렌더링 ---
-        function renderTrackerBboxOverlay() {
+        // --- Detection BBox 오버레이 렌더링 ---
+        function renderDetectionBboxOverlay() {
             const layer = document.getElementById('tracker-bbox-layer');
             if (!layer) return;
             layer.innerHTML = '';
 
             const vw = video.videoWidth || 1, vh = video.videoHeight || 1;
 
-            // 1) 미선택 detection — 회색 반투명 bbox (클릭 가능)
-            for (let i = 0; i < yoloDetections.length; i++) {
-                const det = yoloDetections[i];
-                if (isDetectionAlreadyTracked(det)) continue;
-
+            for (const det of yoloDetections) {
                 const uvX = det.cx / vw;
                 const uvY = 1 - det.cy / vh;
-                const center = trackerUvToScreen(uvX, uvY);
+                const center = detectionUvToScreen(uvX, uvY);
                 if (!center) continue;
 
                 const duW = (det.w / 2) / vw;
                 const duH = (det.h / 2) / vh;
-                const cornerR = trackerUvToScreen(uvX + duW, uvY);
-                const cornerB = trackerUvToScreen(uvX, uvY - duH);
+                const cornerR = detectionUvToScreen(uvX + duW, uvY);
+                const cornerB = detectionUvToScreen(uvX, uvY - duH);
                 const rw = cornerR ? Math.abs(cornerR.x - center.x) * 2 : 30;
                 const rh = cornerB ? Math.abs(cornerB.y - center.y) * 2 : 50;
-
-                // 클릭 가능 영역 (투명 fill로 클릭 감지)
-                const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-                g.style.cursor = 'pointer';
-
-                const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-                rect.setAttribute('x', center.x - rw / 2);
-                rect.setAttribute('y', center.y - rh / 2);
-                rect.setAttribute('width', rw);
-                rect.setAttribute('height', rh);
-                rect.setAttribute('fill', 'rgba(255,255,255,0.05)');
-                rect.setAttribute('stroke', '#888');
-                rect.setAttribute('stroke-width', '1.5');
-                rect.setAttribute('stroke-opacity', '0.6');
-                rect.setAttribute('stroke-dasharray', '4 2');
-                rect.setAttribute('rx', '2');
-                g.appendChild(rect);
-
-                // confidence 라벨
-                const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                txt.setAttribute('x', center.x - rw / 2 + 2);
-                txt.setAttribute('y', center.y - rh / 2 - 3);
-                txt.setAttribute('fill', '#aaa');
-                txt.setAttribute('font-size', '10');
-                txt.setAttribute('font-family', 'sans-serif');
-                txt.textContent = `${(det.score * 100).toFixed(0)}%`;
-                g.appendChild(txt);
-
-                // 클릭 이벤트 — detection을 트래커로 선택
-                const detRef = det;
-                g.addEventListener('pointerup', (e) => {
-                    e.stopPropagation();
-                    selectDetectionAsTracker(detRef);
-                });
-
-                layer.appendChild(g);
-            }
-
-            // 2) 선택된 tracker — 컬러 bbox
-            for (const tr of trackers) {
-                const center = trackerUvToScreen(tr.uvX, tr.uvY);
-                if (!center) continue;
-
-                const duW = (tr.w / 2) / vw;
-                const duH = (tr.h / 2) / vh;
-                const cornerR = trackerUvToScreen(tr.uvX + duW, tr.uvY);
-                const cornerB = trackerUvToScreen(tr.uvX, tr.uvY - duH);
-                const rw = cornerR ? Math.abs(cornerR.x - center.x) * 2 : 30;
-                const rh = cornerB ? Math.abs(cornerB.y - center.y) * 2 : 50;
-
-                const isLost = tr.lostCount > 5;
-                const color = isLost ? '#ff4444' : (tr.color || '#4ade80');
-                const opacity = isLost ? 0.4 : 0.9;
 
                 // BBox 사각형
                 const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
@@ -3880,35 +3866,21 @@
                 rect.setAttribute('width', rw);
                 rect.setAttribute('height', rh);
                 rect.setAttribute('fill', 'none');
-                rect.setAttribute('stroke', color);
-                rect.setAttribute('stroke-width', '2.5');
-                rect.setAttribute('stroke-opacity', opacity);
-                if (isLost) rect.setAttribute('stroke-dasharray', '4 2');
+                rect.setAttribute('stroke', '#4ade80');
+                rect.setAttribute('stroke-width', '2');
+                rect.setAttribute('stroke-opacity', '0.9');
                 rect.setAttribute('rx', '2');
                 layer.appendChild(rect);
 
-                // 하단 중점 마커 (발 위치)
-                const footY = center.y + rh / 2;
-                const foot = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-                foot.setAttribute('x1', center.x - 4);
-                foot.setAttribute('y1', footY);
-                foot.setAttribute('x2', center.x + 4);
-                foot.setAttribute('y2', footY);
-                foot.setAttribute('stroke', color);
-                foot.setAttribute('stroke-width', '3');
-                foot.setAttribute('stroke-opacity', opacity);
-                layer.appendChild(foot);
-
-                // ID 라벨
+                // confidence 라벨
                 const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
                 txt.setAttribute('x', center.x - rw / 2 + 2);
-                txt.setAttribute('y', center.y - rh / 2 - 4);
-                txt.setAttribute('fill', color);
-                txt.setAttribute('font-size', '11');
+                txt.setAttribute('y', center.y - rh / 2 - 3);
+                txt.setAttribute('fill', '#4ade80');
+                txt.setAttribute('font-size', '10');
                 txt.setAttribute('font-weight', 'bold');
                 txt.setAttribute('font-family', 'sans-serif');
-                txt.setAttribute('opacity', opacity);
-                txt.textContent = `#${tr.id} ${tr.score ? (tr.score * 100).toFixed(0) + '%' : ''}`;
+                txt.textContent = `${(det.score * 100).toFixed(0)}%`;
                 layer.appendChild(txt);
             }
         }
@@ -3923,57 +3895,611 @@
             const infoEl = document.getElementById('tracker-info');
             btn.classList.toggle('active', isTracking);
 
-            const selectBtns = document.getElementById('tracker-select-btns');
             if (isTracking) {
-                trackers = [];
                 yoloDetections = [];
-                trackIdCounter = 0;
+                cropBox = null; // 첫 프레임에서 재계산
                 _yoloRunning = false;
                 infoEl.style.display = 'block';
-                infoEl.textContent = 'YOLO 검출 시작... 클릭하여 선수 선택';
-                selectBtns.style.display = 'flex';
-                showToast('🎯 YOLO 트래킹 시작 — bbox 클릭으로 선수 선택');
+                infoEl.textContent = 'YOLO 검출 시작...';
+                showToast('🎯 YOLO 검출 시작');
             } else {
-                trackers = [];
                 yoloDetections = [];
-                trackIdCounter = 0;
                 _yoloRunning = false;
                 const layer = document.getElementById('tracker-bbox-layer');
                 if (layer) layer.innerHTML = '';
                 infoEl.style.display = 'none';
-                selectBtns.style.display = 'none';
-                // 트래커가 만든 전술 포인트도 정리
-                tacticsPoints = [];
-                updateTacticsMinimap();
-                document.getElementById('tactics-count').textContent = '0';
-                showToast('🎯 YOLO 트래킹 중지');
+                showToast('🎯 YOLO 검출 중지');
             }
         }
 
-        // --- 전체 선택: 현재 검출된 모든 detection을 트래커로 등록 ---
-        function selectAllDetections() {
-            if (yoloDetections.length === 0) {
-                showToast('⚠️ 검출된 선수가 없습니다');
+        // ============ 화살표 그리기 (패스 / 침투) ============
+        let tacticsArrows = []; // [{ type: 'pass'|'run', x1, y1, x2, y2 }] (필드 좌표)
+        let arrowDrawMode = null; // null | 'pass' | 'run'
+        let arrowDragStart = null; // { svgX, svgY } 드래그 시작점
+
+        function renderTacticsArrows() {
+            const group = document.getElementById('tactics-arrows');
+            if (!group) return;
+            group.innerHTML = '';
+
+            for (let i = 0; i < tacticsArrows.length; i++) {
+                const a = tacticsArrows[i];
+                const p1 = fieldToTacticsMinimap(a.x1, a.y1);
+                const p2 = fieldToTacticsMinimap(a.x2, a.y2);
+
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', p1.x);
+                line.setAttribute('y1', p1.y);
+                line.setAttribute('x2', p2.x);
+                line.setAttribute('y2', p2.y);
+
+                if (a.type === 'pass') {
+                    line.setAttribute('stroke', '#facc15');
+                    line.setAttribute('stroke-width', '1.5');
+                    line.setAttribute('stroke-dasharray', '4 2');
+                    line.setAttribute('marker-end', 'url(#arrow-pass)');
+                } else {
+                    line.setAttribute('stroke', '#f87171');
+                    line.setAttribute('stroke-width', '1.5');
+                    line.setAttribute('stroke-dasharray', '2 2');
+                    line.setAttribute('marker-end', 'url(#arrow-run)');
+                }
+                line.setAttribute('opacity', '0.9');
+                group.appendChild(line);
+            }
+        }
+
+        // 화살표 모드 토글
+        function setArrowMode(mode) {
+
+            if (gifMode === 'edit' && mode) return; // GIF 편집 중 화살표 모드 불가
+            if (arrowDrawMode === mode) {
+                arrowDrawMode = null;
+            } else {
+                arrowDrawMode = mode;
+            }
+            document.getElementById('arrow-pass-btn').classList.toggle('active', arrowDrawMode === 'pass');
+            document.getElementById('arrow-run-btn').classList.toggle('active', arrowDrawMode === 'run');
+
+            const svg = document.getElementById('tactics-minimap');
+            svg.style.cursor = arrowDrawMode ? 'crosshair' : '';
+        }
+
+        // 화살표 드래그 이벤트
+        (function setupArrowDraw() {
+            const svg = document.getElementById('tactics-minimap');
+            if (!svg) return;
+
+            function getSVGCoords(e) {
+                const rect = svg.getBoundingClientRect();
+                const scaleX = 220 / rect.width;
+                const scaleY = 145 / rect.height;
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                return {
+                    x: (clientX - rect.left) * scaleX,
+                    y: (clientY - rect.top) * scaleY
+                };
+            }
+
+            svg.addEventListener('mousedown', (e) => {
+                if (!arrowDrawMode || gifMode === 'edit') return;
+                if (e.button !== 0) return;
+                arrowDragStart = getSVGCoords(e);
+                e.preventDefault();
+                e.stopPropagation();
+            });
+
+            svg.addEventListener('mousemove', (e) => {
+                if (!arrowDrawMode || !arrowDragStart) return;
+                e.preventDefault();
+                const cur = getSVGCoords(e);
+                const tempGroup = document.getElementById('tactics-arrow-temp');
+                tempGroup.innerHTML = '';
+
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', arrowDragStart.x);
+                line.setAttribute('y1', arrowDragStart.y);
+                line.setAttribute('x2', cur.x);
+                line.setAttribute('y2', cur.y);
+                line.setAttribute('stroke', arrowDrawMode === 'pass' ? '#facc15' : '#f87171');
+                line.setAttribute('stroke-width', '1.5');
+                line.setAttribute('stroke-dasharray', '4 2');
+                line.setAttribute('stroke-opacity', '0.6');
+                line.setAttribute('marker-end', 'url(#arrow-temp)');
+                tempGroup.appendChild(line);
+            });
+
+            svg.addEventListener('mouseup', (e) => {
+                if (!arrowDrawMode || !arrowDragStart) return;
+                const end = getSVGCoords(e);
+
+                // 최소 거리 체크 (너무 짧은 화살표 방지)
+                const dx = end.x - arrowDragStart.x;
+                const dy = end.y - arrowDragStart.y;
+                if (Math.sqrt(dx * dx + dy * dy) > 3) {
+                    // SVG 좌표 → 필드 좌표
+                    const fx1 = (arrowDragStart.x - 20) / 180 * fieldWidth;
+                    const fy1 = (arrowDragStart.y - 5) / 135 * fieldHeight;
+                    const fx2 = (end.x - 20) / 180 * fieldWidth;
+                    const fy2 = (end.y - 5) / 135 * fieldHeight;
+
+                    tacticsArrows.push({
+                        type: arrowDrawMode,
+                        x1: Math.max(0, Math.min(fieldWidth, fx1)),
+                        y1: Math.max(0, Math.min(fieldHeight, fy1)),
+                        x2: Math.max(0, Math.min(fieldWidth, fx2)),
+                        y2: Math.max(0, Math.min(fieldHeight, fy2))
+                    });
+                    renderTacticsArrows();
+                }
+
+                arrowDragStart = null;
+                document.getElementById('tactics-arrow-temp').innerHTML = '';
+            });
+
+            svg.addEventListener('mouseleave', () => {
+                arrowDragStart = null;
+                document.getElementById('tactics-arrow-temp').innerHTML = '';
+            });
+
+            // 버튼 이벤트
+            document.getElementById('arrow-pass-btn').addEventListener('click', () => setArrowMode('pass'));
+            document.getElementById('arrow-run-btn').addEventListener('click', () => setArrowMode('run'));
+            document.getElementById('arrow-clear-btn').addEventListener('click', () => {
+                tacticsArrows = [];
+                renderTacticsArrows();
+            });
+            document.getElementById('arrow-undo-btn').addEventListener('click', () => {
+                tacticsArrows.pop();
+                renderTacticsArrows();
+            });
+        })();
+
+        // ============ 미니맵 GIF 생성 ============
+        let gifStartPositions = []; // [{ x, y, color }] 시작 포인트 (고정)
+        let gifEndPositions = [];   // [{ x, y, color }] 끝 포인트 (수동 배치)
+        let gifPairs = [];          // [{ startIdx, endIdx }] 매칭
+        let gifMode = null;         // null | 'place' | 'link'
+        // 'place': 미니맵 클릭→끝 포인트 배치
+        // 'link': 시작 포인트에서 드래그→끝 포인트에 연결
+        let gifLinkDrag = null;     // { startIdx, svgX, svgY } 드래그 중인 연결
+        let gifStartTime = null;
+        const GIF_TOTAL_FRAMES = 30;
+        const GIF_FRAME_DELAY = 50;
+
+        function resetGifState() {
+            gifStartPositions = [];
+            gifEndPositions = [];
+            gifPairs = [];
+            gifMode = null;
+            gifLinkDrag = null;
+            gifStartTime = null;
+            document.getElementById('gif-start-btn').textContent = '📹 시작 저장';
+            document.getElementById('gif-end-btn').textContent = '📍 끝 찍기';
+            document.getElementById('gif-end-btn').classList.remove('active');
+            document.getElementById('tactics-minimap').style.cursor = '';
+            renderGifKeyframePoints();
+        }
+
+        function saveGifStart() {
+            if (tacticsPoints.length === 0) {
+                showToast('미니맵에 포인트가 없습니다');
                 return;
             }
-            let added = 0;
-            for (const det of yoloDetections) {
-                if (isDetectionAlreadyTracked(det)) continue;
-                selectDetectionAsTracker(det);
-                added++;
-            }
-            showToast(`✅ ${added}명 전체 선택됨`);
+            gifStartPositions = tacticsPoints.map(p => ({
+                x: p.fieldX, y: p.fieldY, color: p.color
+            }));
+            gifEndPositions = [];
+            gifPairs = [];
+            gifStartTime = video.currentTime;
+            gifMode = null; // 끝 찍기는 명시적으로 버튼 클릭
+            setArrowMode(null);
+            const frame = Math.round(gifStartTime * 30);
+            document.getElementById('gif-start-btn').textContent = `✅ 시작 (${gifStartPositions.length}명, F${frame})`;
+            document.getElementById('gif-end-btn').textContent = '📍 끝 찍기';
+            document.getElementById('gif-end-btn').classList.remove('active');
+            renderGifKeyframePoints();
+            showToast('시작 저장 완료 — "끝 찍기" 클릭 → 배치 모드 → 매칭 모드');
         }
 
-        // --- 전체 해제: 모든 트래커 제거 ---
-        function deselectAllTrackers() {
-            trackers = [];
-            tacticsPoints = [];
-            updateTacticsMinimap();
-            document.getElementById('tactics-count').textContent = '0';
-            renderTrackerBboxOverlay();
-            showToast('❌ 전체 해제됨');
+        // "끝 찍기" 버튼: null → place(끝 포인트 배치) → edit(드래그/매칭) → null
+        function toggleGifEndPlace() {
+            if (gifStartPositions.length === 0) {
+                showToast('먼저 시작 저장을 해주세요');
+                return;
+            }
+            const btn = document.getElementById('gif-end-btn');
+            if (gifMode === null) {
+                // → place 모드: 비디오 클릭으로 끝 포인트 배치
+                gifMode = 'place';
+                btn.textContent = '📍 배치중...';
+                btn.classList.add('active');
+                document.getElementById('tactics-minimap').style.cursor = '';
+                showToast('비디오를 클릭하여 끝 포인트를 배치하세요. 다시 누르면 매칭 모드');
+            } else if (gifMode === 'place') {
+                // → edit 모드: 드래그/매칭
+                gifMode = 'edit';
+                btn.textContent = '🔗 매칭중...';
+                btn.classList.add('active');
+                document.getElementById('tactics-minimap').style.cursor = 'grab';
+                setArrowMode(null);
+                showToast('미니맵에서 시작→끝 드래그로 매칭 / 끝 포인트 드래그로 이동');
+            } else if (gifMode === 'edit') {
+                // → null: 비활성화
+                gifMode = null;
+                btn.textContent = '📍 끝 찍기';
+                btn.classList.remove('active');
+                document.getElementById('tactics-minimap').style.cursor = '';
+                showToast('GIF 모드 해제');
+            }
         }
+
+        // 미니맵 GIF 이벤트 (배치 + 연결 드래그)
+        (function setupGifMinimapEvents() {
+            const svg = document.getElementById('tactics-minimap');
+            if (!svg) return;
+
+            function getSVGCoords(e) {
+                const rect = svg.getBoundingClientRect();
+                const scaleX = 220 / rect.width;
+                const scaleY = 145 / rect.height;
+                const cx = e.touches ? e.touches[0].clientX : e.clientX;
+                const cy = e.touches ? e.touches[0].clientY : e.clientY;
+                return { x: (cx - rect.left) * scaleX, y: (cy - rect.top) * scaleY };
+            }
+
+            function svgToField(svgX, svgY) {
+                return {
+                    x: Math.max(0, Math.min(fieldWidth, (svgX - 20) / 180 * fieldWidth)),
+                    y: Math.max(0, Math.min(fieldHeight, (svgY - 5) / 135 * fieldHeight))
+                };
+            }
+
+            function findNearestStart(svgX, svgY, maxDist) {
+                let best = -1, bestD = Infinity;
+                for (let i = 0; i < gifStartPositions.length; i++) {
+                    const p = fieldToTacticsMinimap(gifStartPositions[i].x, gifStartPositions[i].y);
+                    const d = Math.hypot(p.x - svgX, p.y - svgY);
+                    if (d < bestD) { bestD = d; best = i; }
+                }
+                return bestD < maxDist ? best : -1;
+            }
+
+            function findNearestEnd(svgX, svgY, maxDist) {
+                let best = -1, bestD = Infinity;
+                for (let i = 0; i < gifEndPositions.length; i++) {
+                    const p = fieldToTacticsMinimap(gifEndPositions[i].x, gifEndPositions[i].y);
+                    const d = Math.hypot(p.x - svgX, p.y - svgY);
+                    if (d < bestD) { bestD = d; best = i; }
+                }
+                return bestD < maxDist ? best : -1;
+            }
+
+            // mousedown: 시작→연결 드래그 or 끝 포인트 이동 드래그 (edit 모드만)
+            svg.addEventListener('mousedown', (e) => {
+                if (gifMode !== 'edit') return;
+                if (e.button !== 0) return;
+                const { x, y } = getSVGCoords(e);
+
+                // 끝 포인트 근처 → 위치 이동 드래그
+                const endIdx = findNearestEnd(x, y, 10);
+                if (endIdx >= 0) {
+                    gifLinkDrag = { type: 'moveEnd', endIdx, curX: x, curY: y };
+                    e.preventDefault();
+                    e.stopPropagation();
+                    return;
+                }
+
+                // 시작 포인트 근처 → 연결 드래그
+                const startIdx = findNearestStart(x, y, 10);
+                if (startIdx >= 0) {
+                    gifLinkDrag = { type: 'link', startIdx, curX: x, curY: y };
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+            });
+
+            // mousemove
+            svg.addEventListener('mousemove', (e) => {
+                if (!gifLinkDrag) return;
+                e.preventDefault();
+                const { x, y } = getSVGCoords(e);
+                gifLinkDrag.curX = x;
+                gifLinkDrag.curY = y;
+
+                if (gifLinkDrag.type === 'moveEnd') {
+                    // 끝 포인트 위치 실시간 업데이트
+                    const f = svgToField(x, y);
+                    gifEndPositions[gifLinkDrag.endIdx].x = f.x;
+                    gifEndPositions[gifLinkDrag.endIdx].y = f.y;
+                    renderGifKeyframePoints();
+                } else if (gifLinkDrag.type === 'link') {
+                    // 연결 드래그 임시선
+                    let tempLine = svg.querySelector('.gif-temp-link');
+                    if (!tempLine) {
+                        tempLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                        tempLine.classList.add('gif-temp-link');
+                        tempLine.setAttribute('stroke', '#ff0');
+                        tempLine.setAttribute('stroke-width', '1');
+                        tempLine.setAttribute('stroke-dasharray', '3 2');
+                        tempLine.setAttribute('stroke-opacity', '0.8');
+                        svg.appendChild(tempLine);
+                    }
+                    const sp = fieldToTacticsMinimap(gifStartPositions[gifLinkDrag.startIdx].x, gifStartPositions[gifLinkDrag.startIdx].y);
+                    tempLine.setAttribute('x1', sp.x);
+                    tempLine.setAttribute('y1', sp.y);
+                    tempLine.setAttribute('x2', x);
+                    tempLine.setAttribute('y2', y);
+                }
+            });
+
+            // mouseup
+            svg.addEventListener('mouseup', (e) => {
+                svg.querySelectorAll('.gif-temp-link').forEach(el => el.remove());
+                if (!gifLinkDrag) return;
+
+                if (gifLinkDrag.type === 'link') {
+                    // 연결 드래그: 끝 포인트 근처에서 놓으면 매칭
+                    const { x, y } = getSVGCoords(e);
+                    const endIdx = findNearestEnd(x, y, 10);
+                    if (endIdx >= 0) {
+                        gifPairs = gifPairs.filter(p => p.startIdx !== gifLinkDrag.startIdx && p.endIdx !== endIdx);
+                        gifPairs.push({ startIdx: gifLinkDrag.startIdx, endIdx });
+                        document.getElementById('gif-start-btn').textContent = `✅ 시작 (${gifPairs.length}쌍 연결)`;
+                        showToast(`연결 완료 (${gifPairs.length}쌍)`);
+                    }
+                }
+                // moveEnd는 mousemove에서 이미 위치 업데이트됨
+                gifLinkDrag = null;
+                renderGifKeyframePoints();
+            });
+
+            // 끝 포인트는 비디오 클릭 → addTacticsPoint()에서 추가됨
+        })();
+
+        // 키프레임 포인트 + 연결선 렌더링
+        function renderGifKeyframePoints() {
+            const svg = document.getElementById('tactics-minimap');
+            svg.querySelectorAll('.gif-keyframe-point').forEach(el => el.remove());
+
+            const pairedStartIdxs = new Set(gifPairs.map(p => p.startIdx));
+            const pairedEndIdxs = new Set(gifPairs.map(p => p.endIdx));
+
+            // 시작 포인트: 고정, 미연결=노란 테두리 / 연결됨=흰 테두리
+            for (let i = 0; i < gifStartPositions.length; i++) {
+                const pos = gifStartPositions[i];
+                const p = fieldToTacticsMinimap(pos.x, pos.y);
+                const paired = pairedStartIdxs.has(i);
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('cx', p.x);
+                circle.setAttribute('cy', p.y);
+                circle.setAttribute('r', paired ? '2.5' : '3.5');
+                circle.setAttribute('fill', pos.color);
+                circle.setAttribute('stroke', paired ? '#fff' : '#ff0');
+                circle.setAttribute('stroke-width', paired ? '0.8' : '1.5');
+                circle.setAttribute('opacity', '0.95');
+                circle.style.cursor = 'grab';
+                circle.classList.add('gif-keyframe-point');
+                svg.appendChild(circle);
+            }
+
+            // 끝 포인트: 점선 테두리, 미연결=노란 / 연결=흰
+            for (let i = 0; i < gifEndPositions.length; i++) {
+                const pos = gifEndPositions[i];
+                const p = fieldToTacticsMinimap(pos.x, pos.y);
+                const paired = pairedEndIdxs.has(i);
+                const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                circle.setAttribute('cx', p.x);
+                circle.setAttribute('cy', p.y);
+                circle.setAttribute('r', paired ? '2.5' : '3');
+                circle.setAttribute('fill', pos.color);
+                circle.setAttribute('stroke', paired ? '#fff' : '#ff0');
+                circle.setAttribute('stroke-width', paired ? '0.8' : '1.2');
+                circle.setAttribute('stroke-dasharray', '1.5 1');
+                circle.setAttribute('opacity', '0.9');
+                circle.classList.add('gif-keyframe-point');
+                svg.appendChild(circle);
+            }
+
+            // 연결선
+            for (const pair of gifPairs) {
+                const s = gifStartPositions[pair.startIdx];
+                const e = gifEndPositions[pair.endIdx];
+                if (!s || !e) continue;
+                const p1 = fieldToTacticsMinimap(s.x, s.y);
+                const p2 = fieldToTacticsMinimap(e.x, e.y);
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', p1.x); line.setAttribute('y1', p1.y);
+                line.setAttribute('x2', p2.x); line.setAttribute('y2', p2.y);
+                line.setAttribute('stroke', s.color);
+                line.setAttribute('stroke-width', '0.7');
+                line.setAttribute('stroke-opacity', '0.6');
+                line.setAttribute('stroke-dasharray', '2 1');
+                line.classList.add('gif-keyframe-point');
+                svg.appendChild(line);
+            }
+        }
+
+        // Canvas에 축구 필드 배경 그리기
+        function drawFieldOnCanvas(ctx, w, h) {
+            const padX = w * (20 / 220);
+            const padY = h * (5 / 145);
+            const fw = w * (180 / 220);
+            const fh = h * (135 / 145);
+
+            ctx.fillStyle = '#1a472a';
+            ctx.fillRect(0, 0, w, h);
+
+            ctx.fillStyle = '#1e5631';
+            ctx.fillRect(padX, padY, fw, fh);
+
+            ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+            ctx.lineWidth = 1.5;
+
+            const fx = (fieldX) => padX + (fieldX / fieldWidth) * fw;
+            const fy = (fieldY) => padY + (fieldY / fieldHeight) * fh;
+
+            // 외곽선
+            ctx.strokeRect(padX, padY, fw, fh);
+
+            // 센터 라인
+            ctx.beginPath();
+            ctx.moveTo(fx(fieldWidth / 2), padY);
+            ctx.lineTo(fx(fieldWidth / 2), padY + fh);
+            ctx.stroke();
+
+            // 센터 서클
+            const cr = (centerCircleRadius / fieldWidth) * fw;
+            ctx.beginPath();
+            ctx.arc(fx(fieldWidth / 2), fy(fieldHeight / 2), cr, 0, Math.PI * 2);
+            ctx.stroke();
+
+            // 센터 점
+            ctx.fillStyle = 'rgba(255,255,255,0.6)';
+            ctx.beginPath();
+            ctx.arc(fx(fieldWidth / 2), fy(fieldHeight / 2), 2, 0, Math.PI * 2);
+            ctx.fill();
+
+            // 페널티 박스 (좌/우)
+            const pW = (penaltyDepth / fieldWidth) * fw;
+            const pH = (penaltyWidth / fieldHeight) * fh;
+            const pY = fy(fieldHeight / 2) - pH / 2;
+            ctx.strokeRect(padX, pY, pW, pH);
+            ctx.strokeRect(padX + fw - pW, pY, pW, pH);
+
+            // 골 박스 (좌/우)
+            const gbW = (goalboxDepth / fieldWidth) * fw;
+            const gbRealH = (goalboxDepth * 2 + goalWidth) / fieldHeight * fh;
+            const gbY = fy(fieldHeight / 2) - gbRealH / 2;
+            ctx.strokeRect(padX, gbY, gbW, gbRealH);
+            ctx.strokeRect(padX + fw - gbW, gbY, gbW, gbRealH);
+        }
+
+        // easeInOut 보간 함수
+        function easeInOutCubic(t) {
+            return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+        }
+
+        // 애니메이션 WebM 생성 (브라우저 네이티브 MediaRecorder)
+        function generateMinimapGif() {
+            if (gifPairs.length === 0) {
+                showToast('연결된 시작↔끝 쌍이 없습니다');
+                return;
+            }
+
+            const statusEl = document.getElementById('gif-status');
+            statusEl.style.display = 'block';
+            statusEl.textContent = '애니메이션 생성 중...';
+
+            const W = 440, H = 290;
+            const canvas = document.createElement('canvas');
+            canvas.width = W;
+            canvas.height = H;
+            const ctx = canvas.getContext('2d');
+
+            const padX = W * (20 / 220);
+            const padY = H * (5 / 145);
+            const fw = W * (180 / 220);
+            const fh = H * (135 / 145);
+            const toX = (fieldX) => padX + (fieldX / fieldWidth) * fw;
+            const toY = (fieldY) => padY + (fieldY / fieldHeight) * fh;
+
+            const totalFrames = GIF_TOTAL_FRAMES;
+            const fps = 20;
+
+            // Canvas → MediaRecorder (WebM)
+            const stream = canvas.captureStream(0); // 0 = manual frame control
+            const chunks = [];
+            const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+                ? 'video/webm;codecs=vp9'
+                : 'video/webm';
+            const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 2000000 });
+            recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+            recorder.onstop = () => {
+                const blob = new Blob(chunks, { type: 'video/webm' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'minimap_animation.webm';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                setTimeout(() => URL.revokeObjectURL(url), 5000);
+                statusEl.textContent = '다운로드 완료!';
+                setTimeout(() => { statusEl.style.display = 'none'; }, 3000);
+                showToast('애니메이션 저장 완료!');
+            };
+
+            recorder.start();
+
+            function drawFrame(f) {
+                const rawT = f / totalFrames;
+                const t = easeInOutCubic(rawT);
+
+                drawFieldOnCanvas(ctx, W, H);
+
+                for (const pair of gifPairs) {
+                    const s = gifStartPositions[pair.startIdx];
+                    const e = gifEndPositions[pair.endIdx];
+                    if (!s || !e) continue;
+                    const curX = s.x + (e.x - s.x) * t;
+                    const curY = s.y + (e.y - s.y) * t;
+                    const cx = toX(curX);
+                    const cy = toY(curY);
+
+                    // 이동 궤적선
+                    const sx = toX(s.x), sy = toY(s.y);
+                    ctx.beginPath();
+                    ctx.moveTo(sx, sy);
+                    ctx.lineTo(cx, cy);
+                    ctx.strokeStyle = s.color;
+                    ctx.globalAlpha = 0.3;
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+                    ctx.globalAlpha = 1;
+
+                    // 선수 원
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, 6, 0, Math.PI * 2);
+                    ctx.fillStyle = s.color;
+                    ctx.fill();
+                    ctx.strokeStyle = '#fff';
+                    ctx.lineWidth = 1.5;
+                    ctx.stroke();
+                }
+
+                // 수동으로 프레임 캡처
+                const track = stream.getVideoTracks()[0];
+                if (track.requestFrame) track.requestFrame();
+
+                statusEl.textContent = `렌더링: ${f + 1}/${totalFrames + 1}`;
+            }
+
+            // 프레임별 순차 렌더링 (타이밍 보장)
+            let f = 0;
+            const frameInterval = 1000 / fps;
+            function nextFrame() {
+                if (f > totalFrames) {
+                    // 마지막 프레임 잠깐 멈춤
+                    setTimeout(() => { recorder.stop(); }, 300);
+                    return;
+                }
+                drawFrame(f);
+                f++;
+                setTimeout(nextFrame, f === 1 ? 300 : frameInterval); // 첫 프레임 잠깐 멈춤
+            }
+            nextFrame();
+        }
+
+        // GIF 버튼 이벤트
+        document.getElementById('gif-start-btn').addEventListener('click', saveGifStart);
+        document.getElementById('gif-end-btn').addEventListener('click', toggleGifEndPlace);
+        document.getElementById('gif-reset-btn').addEventListener('click', () => {
+            resetGifState();
+            showToast('GIF 초기화');
+        });
+        document.getElementById('gif-generate-btn').addEventListener('click', generateMinimapGif);
 
         function updateTacticsMinimap() {
             const pointsGroup = document.getElementById('tactics-points');
@@ -3997,6 +4523,16 @@
                 g.setAttribute('data-point-index', i);
                 g.style.cursor = 'grab';
 
+                const radius = 2.25;
+
+                // 투명 히트 영역 (드래그 쉽게)
+                const hitArea = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                hitArea.setAttribute('cx', mx);
+                hitArea.setAttribute('cy', my);
+                hitArea.setAttribute('r', 5);
+                hitArea.setAttribute('fill', 'transparent');
+                g.appendChild(hitArea);
+
                 if (p.team === 'ball') {
                     // 공 아이콘
                     const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
@@ -4012,7 +4548,7 @@
                     const outerCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
                     outerCircle.setAttribute('cx', mx);
                     outerCircle.setAttribute('cy', my);
-                    outerCircle.setAttribute('r', '2.25');
+                    outerCircle.setAttribute('r', radius);
                     outerCircle.setAttribute('fill', p.color);
                     outerCircle.setAttribute('stroke', '#fff');
                     outerCircle.setAttribute('stroke-width', '0.5');
@@ -4020,13 +4556,7 @@
                     g.appendChild(outerCircle);
                 }
 
-                // 드래그 이벤트
-                g.addEventListener('mousedown', (e) => {
-                    e.stopPropagation();
-                    e.preventDefault();
-                    tacticsDragState = { pointIndex: i };
-                    g.style.cursor = 'grabbing';
-                });
+                // 드래그는 SVG 레벨에서 통합 처리 (setupTacticsMinimapDrag)
 
                 pointsGroup.appendChild(g);
             }
@@ -4034,7 +4564,7 @@
             // 선수 간 연결선 제거됨
         }
         
-        // 미니맵 드래그 이벤트 설정
+        // 미니맵 포인트 드래그 이벤트 (SVG 레벨 통합)
         (function setupTacticsMinimapDrag() {
             const svg = document.getElementById('tactics-minimap');
             if (!svg) return;
@@ -4051,9 +4581,35 @@
                 };
             }
 
+            function findNearestPoint(svgX, svgY) {
+                const toMX = (fx) => fieldToTacticsMinimap(fx, 0).x;
+                const toMY = (fy) => fieldToTacticsMinimap(0, fy).y;
+                let bestIdx = -1, bestDist = Infinity;
+                for (let i = 0; i < tacticsPoints.length; i++) {
+                    const p = tacticsPoints[i];
+                    const dx = toMX(p.fieldX) - svgX;
+                    const dy = toMY(p.fieldY) - svgY;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < bestDist) { bestDist = dist; bestIdx = i; }
+                }
+                return bestDist < 10 ? bestIdx : -1; // 10px 이내
+            }
+
+            svg.addEventListener('mousedown', (e) => {
+                if (e.button !== 0) return;
+                const { x: svgX, y: svgY } = getSVGCoords(e);
+                const idx = findNearestPoint(svgX, svgY);
+                if (idx >= 0) {
+                    tacticsDragState = { pointIndex: idx };
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+            }, true); // capture phase → 화살표보다 먼저 처리
+
             function onDragMove(e) {
                 if (!tacticsDragState) return;
                 e.preventDefault();
+                e.stopPropagation();
                 const { x: svgX, y: svgY } = getSVGCoords(e);
                 const p = tacticsPoints[tacticsDragState.pointIndex];
                 if (!p) return;
@@ -4069,10 +4625,19 @@
                 }
             }
 
-            svg.addEventListener('mousemove', onDragMove);
-            svg.addEventListener('mouseup', onDragEnd);
+            svg.addEventListener('mousemove', onDragMove, true);
+            svg.addEventListener('mouseup', onDragEnd, true);
             svg.addEventListener('mouseleave', onDragEnd);
-            svg.addEventListener('touchmove', onDragMove, { passive: false });
+            svg.addEventListener('touchstart', (e) => {
+                const { x: svgX, y: svgY } = getSVGCoords(e);
+                const idx = findNearestPoint(svgX, svgY);
+                if (idx >= 0) {
+                    tacticsDragState = { pointIndex: idx };
+                    e.preventDefault();
+                    e.stopPropagation();
+                }
+            }, { capture: true, passive: false });
+            svg.addEventListener('touchmove', onDragMove, { capture: true, passive: false });
             svg.addEventListener('touchend', onDragEnd);
         })();
 
