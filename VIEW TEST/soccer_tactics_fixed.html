@@ -579,16 +579,29 @@
         </div>
         <div style="display: flex; gap: 4px; margin-top: 6px; align-items: center;">
             <button class="btn" id="gif-start-btn" style="flex: 1; font-size: 11px;">📹 시작 저장</button>
-            <button class="btn" id="gif-end-btn" style="flex: 1; font-size: 11px;">📍 끝 찍기</button>
-            <button class="btn" id="gif-reset-btn" style="width: 30px; font-size: 11px;">🗑</button>
-            <button class="btn" id="gif-generate-btn" style="flex: 1; font-size: 11px; background: rgba(168,85,247,0.3); border: 1px solid #a855f7; color: #a855f7;">💾 GIF 저장</button>
+            <button class="btn" id="gif-end-btn" style="flex: 1; font-size: 11px;">📍 끝 저장</button>
+            <button class="btn" id="gif-match-undo-btn" style="width: 30px; font-size: 11px;" title="매칭 취소">↩</button>
+            <button class="btn" id="gif-reset-btn" style="width: 30px; font-size: 11px;" title="전체 초기화">🗑</button>
+            <button class="btn" id="gif-seq-save-btn" style="flex: 1; font-size: 11px; background: rgba(168,85,247,0.3); border: 1px solid #a855f7; color: #a855f7;">💾 시퀀스 저장</button>
         </div>
         <div id="gif-status" style="font-size: 10px; color: #a855f7; margin-top: 4px; text-align: center; display: none;"></div>
         <div style="font-size: 10px; color: #888; margin-top: 8px; text-align: center;">
             미니맵 드래그→화살표 그리기 | <span id="tactics-count">0</span>개 검출
         </div>
     </div>
-    
+
+    <!-- 시퀀스 목록 패널 -->
+    <div class="panel" id="sequence-panel" style="display: none; top: 80px; left: 20px; width: 320px; min-width: 240px; z-index: 110; position: fixed;">
+        <div id="seq-drag-handle" style="display: flex; justify-content: space-between; align-items: center; margin: -16px -20px 8px -20px; padding: 10px 16px; cursor: grab; border-bottom: 1px solid rgba(255,255,255,0.1); user-select: none;">
+            <span style="font-size: 14px; font-weight: bold;">📋 시퀀스 (<span id="sequence-count">0</span>)</span>
+            <button class="btn" id="seq-close-btn" style="width: auto; padding: 4px 8px; font-size: 12px;" onclick="document.getElementById('sequence-panel').style.display='none'">✕</button>
+        </div>
+        <div id="sequence-list" style="max-height: 300px; overflow-y: auto;"></div>
+        <div style="font-size: 10px; color: #888; margin-top: 6px; text-align: center;">
+            ▶ 영상 = 좌(비디오) + 우(미니맵) 합성 WebM
+        </div>
+    </div>
+
     <div class="panel" id="video-controls" style="display: none;">
         <button class="btn btn-icon" id="play-btn">▶</button>
         
@@ -1554,7 +1567,7 @@
             if (Math.sqrt(dx * dx + dy * dy) < 5) {
                 // 전술 모드: 포인트 추가 (YOLO 트래킹 중에도 수동 추가 가능)
                 if (isTacticsMode) {
-                    if (gifMode === 'edit') return; // edit 모드에서는 포인트 생성 차단
+                    if (gifMode === 'match') return; // 매칭 모드에서는 포인트 생성 차단
                     addTacticsPoint(event.clientX, event.clientY);
                     return;
                 }
@@ -1805,6 +1818,37 @@
                 if (!resizing) return;
                 const newW = Math.max(300, startW + (e.clientX - startX));
                 panel.style.width = newW + 'px';
+            });
+        })();
+
+        // ============ 시퀀스 패널 드래그 ============
+        (function() {
+            const panel  = document.getElementById('sequence-panel');
+            const handle = document.getElementById('seq-drag-handle');
+            if (!panel || !handle) return;
+            let dragging = false, ox = 0, oy = 0;
+            handle.addEventListener('mousedown', (e) => {
+                if (e.button !== 0) return;
+                dragging = true;
+                const rect = panel.getBoundingClientRect();
+                panel.style.left = rect.left + 'px';
+                panel.style.top  = rect.top  + 'px';
+                panel.style.right = 'auto';
+                ox = e.clientX - rect.left;
+                oy = e.clientY - rect.top;
+                handle.style.cursor = 'grabbing';
+                e.preventDefault();
+            });
+            window.addEventListener('mousemove', (e) => {
+                if (!dragging) return;
+                let nx = Math.max(0, Math.min(window.innerWidth - panel.offsetWidth, e.clientX - ox));
+                let ny = Math.max(0, Math.min(window.innerHeight - panel.offsetHeight, e.clientY - oy));
+                panel.style.left = nx + 'px';
+                panel.style.top  = ny + 'px';
+            });
+            window.addEventListener('mouseup', () => {
+                if (dragging) handle.style.cursor = 'grab';
+                dragging = false;
             });
         })();
 
@@ -3419,18 +3463,9 @@
         }
         
         function addTacticsPoint(screenX, screenY) {
-            // GIF 모드 활성화 중에는 'place' 모드에서만 끝 포인트 추가, 그 외 차단
-            if (gifMode === 'edit') return;
-            if (gifMode === 'place') {
-                const fieldCoord = screenToField(screenX, screenY);
-                if (!fieldCoord) { showToast('⚠️ 필드 영역을 클릭하세요'); return; }
-                const color = teamColors[currentTacticsTeam];
-                gifEndPositions.push({ x: fieldCoord.x, y: fieldCoord.y, color });
-                renderGifKeyframePoints();
-                showToast(`끝 포인트 ${gifEndPositions.length}개`);
-                return;
-            }
-            // 시작 저장 후에는 명시적 모드 없이 포인트 생성 차단
+            // GIF 매칭 모드에서는 포인트 생성 차단
+            if (gifMode === 'match') return;
+            // 시작 저장 후에는 포인트 생성 차단
             if (gifStartPositions.length > 0) return;
 
             // 화면 좌표 → 필드 좌표 변환
@@ -3952,7 +3987,7 @@
         // 화살표 모드 토글
         function setArrowMode(mode) {
 
-            if (gifMode === 'edit' && mode) return; // GIF 편집 중 화살표 모드 불가
+            if (gifMode === 'match' && mode) return; // GIF 매칭 중 화살표 모드 불가
             if (arrowDrawMode === mode) {
                 arrowDrawMode = null;
             } else {
@@ -3983,7 +4018,7 @@
             }
 
             svg.addEventListener('mousedown', (e) => {
-                if (!arrowDrawMode || gifMode === 'edit') return;
+                if (!arrowDrawMode || gifMode === 'match') return;
                 if (e.button !== 0) return;
                 arrowDragStart = getSVGCoords(e);
                 e.preventDefault();
@@ -4057,14 +4092,13 @@
         })();
 
         // ============ 미니맵 GIF 생성 ============
-        let gifStartPositions = []; // [{ x, y, color }] 시작 포인트 (고정)
-        let gifEndPositions = [];   // [{ x, y, color }] 끝 포인트 (수동 배치)
+        let gifStartPositions = []; // [{ x, y, color }] 시작 포인트
+        let gifEndPositions = [];   // [{ x, y, color }] 끝 포인트
         let gifPairs = [];          // [{ startIdx, endIdx }] 매칭
-        let gifMode = null;         // null | 'place' | 'link'
-        // 'place': 미니맵 클릭→끝 포인트 배치
-        // 'link': 시작 포인트에서 드래그→끝 포인트에 연결
-        let gifLinkDrag = null;     // { startIdx, svgX, svgY } 드래그 중인 연결
+        let gifMode = null;         // null | 'match'
+        let gifMatchSelection = null; // 매칭 중 선택된 시작 포인트 인덱스
         let gifStartTime = null;
+        let gifEndTime = null;
         const GIF_TOTAL_FRAMES = 30;
         const GIF_FRAME_DELAY = 50;
 
@@ -4073,10 +4107,11 @@
             gifEndPositions = [];
             gifPairs = [];
             gifMode = null;
-            gifLinkDrag = null;
+            gifMatchSelection = null;
             gifStartTime = null;
+            gifEndTime = null;
             document.getElementById('gif-start-btn').textContent = '📹 시작 저장';
-            document.getElementById('gif-end-btn').textContent = '📍 끝 찍기';
+            document.getElementById('gif-end-btn').textContent = '📍 끝 저장';
             document.getElementById('gif-end-btn').classList.remove('active');
             document.getElementById('tactics-minimap').style.cursor = '';
             renderGifKeyframePoints();
@@ -4093,49 +4128,55 @@
             gifEndPositions = [];
             gifPairs = [];
             gifStartTime = video.currentTime;
-            gifMode = null; // 끝 찍기는 명시적으로 버튼 클릭
+            gifEndTime = null;
+            gifMode = null;
+            gifMatchSelection = null;
             setArrowMode(null);
             const frame = Math.round(gifStartTime * 30);
             document.getElementById('gif-start-btn').textContent = `✅ 시작 (${gifStartPositions.length}명, F${frame})`;
-            document.getElementById('gif-end-btn').textContent = '📍 끝 찍기';
+            document.getElementById('gif-end-btn').textContent = '📍 끝 저장';
             document.getElementById('gif-end-btn').classList.remove('active');
             renderGifKeyframePoints();
-            showToast('시작 저장 완료 — "끝 찍기" 클릭 → 배치 모드 → 매칭 모드');
+            showToast('시작 저장 완료 — 시간 이동 후 "끝 저장" 클릭');
         }
 
-        // "끝 찍기" 버튼: null → place(끝 포인트 배치) → edit(드래그/매칭) → null
-        function toggleGifEndPlace() {
+        // "끝 저장": 현재 전술 포인트를 끝 위치로 저장 → 매칭 모드 진입
+        function saveGifEnd() {
             if (gifStartPositions.length === 0) {
                 showToast('먼저 시작 저장을 해주세요');
                 return;
             }
             const btn = document.getElementById('gif-end-btn');
-            if (gifMode === null) {
-                // → place 모드: 비디오 클릭으로 끝 포인트 배치
-                gifMode = 'place';
-                btn.textContent = '📍 배치중...';
-                btn.classList.add('active');
-                document.getElementById('tactics-minimap').style.cursor = '';
-                showToast('비디오를 클릭하여 끝 포인트를 배치하세요. 다시 누르면 매칭 모드');
-            } else if (gifMode === 'place') {
-                // → edit 모드: 드래그/매칭
-                gifMode = 'edit';
-                btn.textContent = '🔗 매칭중...';
-                btn.classList.add('active');
-                document.getElementById('tactics-minimap').style.cursor = 'grab';
-                setArrowMode(null);
-                showToast('미니맵에서 시작→끝 드래그로 매칭 / 끝 포인트 드래그로 이동');
-            } else if (gifMode === 'edit') {
-                // → null: 비활성화
+            if (gifMode === 'match') {
                 gifMode = null;
-                btn.textContent = '📍 끝 찍기';
+                gifMatchSelection = null;
+                btn.textContent = '📍 끝 저장';
                 btn.classList.remove('active');
                 document.getElementById('tactics-minimap').style.cursor = '';
-                showToast('GIF 모드 해제');
+                renderGifKeyframePoints();
+                showToast('매칭 모드 해제');
+                return;
             }
+            if (tacticsPoints.length === 0) {
+                showToast('미니맵에 포인트가 없습니다');
+                return;
+            }
+            gifEndPositions = tacticsPoints.map(p => ({
+                x: p.fieldX, y: p.fieldY, color: p.color
+            }));
+            gifPairs = [];
+            gifEndTime = video.currentTime;
+            gifMode = 'match';
+            gifMatchSelection = null;
+            setArrowMode(null);
+            const frame = Math.round(gifEndTime * 30);
+            btn.textContent = `🔗 매칭중... (F${frame})`;
+            btn.classList.add('active');
+            renderGifKeyframePoints();
+            showToast('끝 저장 완료 — 시작 포인트 클릭 → 끝 포인트 클릭으로 매칭');
         }
 
-        // 미니맵 GIF 이벤트 (배치 + 연결 드래그)
+        // 미니맵 GIF 클릭 매칭 이벤트
         (function setupGifMinimapEvents() {
             const svg = document.getElementById('tactics-minimap');
             if (!svg) return;
@@ -4147,13 +4188,6 @@
                 const cx = e.touches ? e.touches[0].clientX : e.clientX;
                 const cy = e.touches ? e.touches[0].clientY : e.clientY;
                 return { x: (cx - rect.left) * scaleX, y: (cy - rect.top) * scaleY };
-            }
-
-            function svgToField(svgX, svgY) {
-                return {
-                    x: Math.max(0, Math.min(fieldWidth, (svgX - 20) / 180 * fieldWidth)),
-                    y: Math.max(0, Math.min(fieldHeight, (svgY - 5) / 135 * fieldHeight))
-                };
             }
 
             function findNearestStart(svgX, svgY, maxDist) {
@@ -4176,87 +4210,67 @@
                 return bestD < maxDist ? best : -1;
             }
 
-            // mousedown: 시작→연결 드래그 or 끝 포인트 이동 드래그 (edit 모드만)
-            svg.addEventListener('mousedown', (e) => {
-                if (gifMode !== 'edit') return;
-                if (e.button !== 0) return;
+            // 클릭 매칭: 시작 클릭 → 끝 클릭 = 한 쌍
+            svg.addEventListener('click', (e) => {
+                if (gifMode !== 'match') return;
                 const { x, y } = getSVGCoords(e);
 
-                // 끝 포인트 근처 → 위치 이동 드래그
-                const endIdx = findNearestEnd(x, y, 10);
-                if (endIdx >= 0) {
-                    gifLinkDrag = { type: 'moveEnd', endIdx, curX: x, curY: y };
-                    e.preventDefault();
-                    e.stopPropagation();
+                const startIdx = findNearestStart(x, y, 10);
+                if (startIdx >= 0) {
+                    // 이미 매칭된 시작 포인트 클릭 → 매칭 해제
+                    const existingPair = gifPairs.find(p => p.startIdx === startIdx);
+                    if (existingPair) {
+                        gifPairs = gifPairs.filter(p => p.startIdx !== startIdx);
+                        gifMatchSelection = null;
+                        showToast(`매칭 해제 (${gifPairs.length}쌍)`);
+                        renderGifKeyframePoints();
+                        return;
+                    }
+                    // 시작 포인트 선택
+                    gifMatchSelection = startIdx;
+                    renderGifKeyframePoints();
+                    showToast(`시작 #${startIdx + 1} 선택 — 끝 포인트를 클릭하세요`);
                     return;
                 }
 
-                // 시작 포인트 근처 → 연결 드래그
-                const startIdx = findNearestStart(x, y, 10);
-                if (startIdx >= 0) {
-                    gifLinkDrag = { type: 'link', startIdx, curX: x, curY: y };
-                    e.preventDefault();
-                    e.stopPropagation();
-                }
-            });
-
-            // mousemove
-            svg.addEventListener('mousemove', (e) => {
-                if (!gifLinkDrag) return;
-                e.preventDefault();
-                const { x, y } = getSVGCoords(e);
-                gifLinkDrag.curX = x;
-                gifLinkDrag.curY = y;
-
-                if (gifLinkDrag.type === 'moveEnd') {
-                    // 끝 포인트 위치 실시간 업데이트
-                    const f = svgToField(x, y);
-                    gifEndPositions[gifLinkDrag.endIdx].x = f.x;
-                    gifEndPositions[gifLinkDrag.endIdx].y = f.y;
-                    renderGifKeyframePoints();
-                } else if (gifLinkDrag.type === 'link') {
-                    // 연결 드래그 임시선
-                    let tempLine = svg.querySelector('.gif-temp-link');
-                    if (!tempLine) {
-                        tempLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-                        tempLine.classList.add('gif-temp-link');
-                        tempLine.setAttribute('stroke', '#ff0');
-                        tempLine.setAttribute('stroke-width', '1');
-                        tempLine.setAttribute('stroke-dasharray', '3 2');
-                        tempLine.setAttribute('stroke-opacity', '0.8');
-                        svg.appendChild(tempLine);
+                const endIdx = findNearestEnd(x, y, 10);
+                if (endIdx >= 0) {
+                    // 시작이 선택된 상태에서 끝 클릭 → 매칭 생성
+                    if (gifMatchSelection !== null) {
+                        gifPairs = gifPairs.filter(p => p.startIdx !== gifMatchSelection && p.endIdx !== endIdx);
+                        gifPairs.push({ startIdx: gifMatchSelection, endIdx });
+                        gifMatchSelection = null;
+                        showToast(`매칭 완료 (${gifPairs.length}쌍)`);
+                        renderGifKeyframePoints();
+                        return;
                     }
-                    const sp = fieldToTacticsMinimap(gifStartPositions[gifLinkDrag.startIdx].x, gifStartPositions[gifLinkDrag.startIdx].y);
-                    tempLine.setAttribute('x1', sp.x);
-                    tempLine.setAttribute('y1', sp.y);
-                    tempLine.setAttribute('x2', x);
-                    tempLine.setAttribute('y2', y);
-                }
-            });
-
-            // mouseup
-            svg.addEventListener('mouseup', (e) => {
-                svg.querySelectorAll('.gif-temp-link').forEach(el => el.remove());
-                if (!gifLinkDrag) return;
-
-                if (gifLinkDrag.type === 'link') {
-                    // 연결 드래그: 끝 포인트 근처에서 놓으면 매칭
-                    const { x, y } = getSVGCoords(e);
-                    const endIdx = findNearestEnd(x, y, 10);
-                    if (endIdx >= 0) {
-                        gifPairs = gifPairs.filter(p => p.startIdx !== gifLinkDrag.startIdx && p.endIdx !== endIdx);
-                        gifPairs.push({ startIdx: gifLinkDrag.startIdx, endIdx });
-                        document.getElementById('gif-start-btn').textContent = `✅ 시작 (${gifPairs.length}쌍 연결)`;
-                        showToast(`연결 완료 (${gifPairs.length}쌍)`);
+                    // 이미 매칭된 끝 포인트 클릭 → 매칭 해제
+                    const existingPair = gifPairs.find(p => p.endIdx === endIdx);
+                    if (existingPair) {
+                        gifPairs = gifPairs.filter(p => p.endIdx !== endIdx);
+                        showToast(`매칭 해제 (${gifPairs.length}쌍)`);
+                        renderGifKeyframePoints();
+                        return;
                     }
                 }
-                // moveEnd는 mousemove에서 이미 위치 업데이트됨
-                gifLinkDrag = null;
+
+                // 빈 공간 클릭 → 선택 해제
+                gifMatchSelection = null;
                 renderGifKeyframePoints();
             });
-
-            // 끝 포인트는 비디오 클릭 → addTacticsPoint()에서 추가됨
         })();
+
+        // 매칭 undo
+        function undoGifMatch() {
+            if (gifPairs.length === 0) {
+                showToast('취소할 매칭이 없습니다');
+                return;
+            }
+            gifPairs.pop();
+            gifMatchSelection = null;
+            renderGifKeyframePoints();
+            showToast(`매칭 취소 (${gifPairs.length}쌍 남음)`);
+        }
 
         // 키프레임 포인트 + 연결선 렌더링
         function renderGifKeyframePoints() {
@@ -4266,20 +4280,21 @@
             const pairedStartIdxs = new Set(gifPairs.map(p => p.startIdx));
             const pairedEndIdxs = new Set(gifPairs.map(p => p.endIdx));
 
-            // 시작 포인트: 고정, 미연결=노란 테두리 / 연결됨=흰 테두리
+            // 시작 포인트: 선택중=시안 / 미연결=노란 / 연결=흰 테두리
             for (let i = 0; i < gifStartPositions.length; i++) {
                 const pos = gifStartPositions[i];
                 const p = fieldToTacticsMinimap(pos.x, pos.y);
                 const paired = pairedStartIdxs.has(i);
+                const selected = gifMatchSelection === i;
                 const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
                 circle.setAttribute('cx', p.x);
                 circle.setAttribute('cy', p.y);
-                circle.setAttribute('r', paired ? '2.5' : '3.5');
+                circle.setAttribute('r', selected ? '4.5' : paired ? '2.5' : '3.5');
                 circle.setAttribute('fill', pos.color);
-                circle.setAttribute('stroke', paired ? '#fff' : '#ff0');
-                circle.setAttribute('stroke-width', paired ? '0.8' : '1.5');
+                circle.setAttribute('stroke', selected ? '#0ff' : paired ? '#fff' : '#ff0');
+                circle.setAttribute('stroke-width', selected ? '2' : paired ? '0.8' : '1.5');
                 circle.setAttribute('opacity', '0.95');
-                circle.style.cursor = 'grab';
+                circle.style.cursor = gifMode === 'match' ? 'pointer' : 'grab';
                 circle.classList.add('gif-keyframe-point');
                 svg.appendChild(circle);
             }
@@ -4298,6 +4313,7 @@
                 circle.setAttribute('stroke-width', paired ? '0.8' : '1.2');
                 circle.setAttribute('stroke-dasharray', '1.5 1');
                 circle.setAttribute('opacity', '0.9');
+                circle.style.cursor = gifMode === 'match' ? 'pointer' : 'default';
                 circle.classList.add('gif-keyframe-point');
                 svg.appendChild(circle);
             }
@@ -4383,8 +4399,8 @@
 
         // 애니메이션 WebM 생성 (브라우저 네이티브 MediaRecorder)
         function generateMinimapGif() {
-            if (gifPairs.length === 0) {
-                showToast('연결된 시작↔끝 쌍이 없습니다');
+            if (gifStartPositions.length === 0) {
+                showToast('시작 포인트가 없습니다');
                 return;
             }
 
@@ -4439,6 +4455,9 @@
 
                 drawFieldOnCanvas(ctx, W, H);
 
+                const pairedStartIdxs = new Set(gifPairs.map(p => p.startIdx));
+
+                // 매칭된 포인트: 시작→끝 보간 이동
                 for (const pair of gifPairs) {
                     const s = gifStartPositions[pair.startIdx];
                     const e = gifEndPositions[pair.endIdx];
@@ -4469,6 +4488,23 @@
                     ctx.stroke();
                 }
 
+                // 미매칭 시작 포인트: 제자리 정지
+                for (let i = 0; i < gifStartPositions.length; i++) {
+                    if (pairedStartIdxs.has(i)) continue;
+                    const s = gifStartPositions[i];
+                    const cx = toX(s.x);
+                    const cy = toY(s.y);
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, 6, 0, Math.PI * 2);
+                    ctx.fillStyle = s.color;
+                    ctx.globalAlpha = 0.5;
+                    ctx.fill();
+                    ctx.strokeStyle = '#fff';
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+                    ctx.globalAlpha = 1;
+                }
+
                 // 수동으로 프레임 캡처
                 const track = stream.getVideoTracks()[0];
                 if (track.requestFrame) track.requestFrame();
@@ -4492,14 +4528,214 @@
             nextFrame();
         }
 
-        // GIF 버튼 이벤트
+        // ============ 시퀀스 저장/재생 ============
+        let savedSequences = [];
+        let seqIdCounter = 0;
+
+        function formatTime(sec) {
+            const m = Math.floor(sec / 60);
+            const s = Math.floor(sec % 60);
+            return `${m}:${s.toString().padStart(2, '0')}`;
+        }
+
+        function saveSequence() {
+            if (gifStartPositions.length === 0) {
+                showToast('시작 포인트가 없습니다');
+                return;
+            }
+            if (gifEndPositions.length === 0) {
+                showToast('끝 포인트가 없습니다');
+                return;
+            }
+            const seq = {
+                id: ++seqIdCounter,
+                startTime: gifStartTime,
+                endTime: gifEndTime || video.currentTime,
+                startPositions: JSON.parse(JSON.stringify(gifStartPositions)),
+                endPositions: JSON.parse(JSON.stringify(gifEndPositions)),
+                pairs: JSON.parse(JSON.stringify(gifPairs)),
+                arrows: JSON.parse(JSON.stringify(tacticsArrows))
+            };
+            savedSequences.push(seq);
+            renderSequenceList();
+            resetGifState();
+            showToast(`시퀀스 #${seq.id} 저장 완료`);
+            document.getElementById('sequence-panel').style.display = 'block';
+        }
+
+        function deleteSequence(id) {
+            savedSequences = savedSequences.filter(s => s.id !== id);
+            renderSequenceList();
+            if (savedSequences.length === 0) {
+                document.getElementById('sequence-panel').style.display = 'none';
+            }
+        }
+
+        function renderSequenceList() {
+            const list = document.getElementById('sequence-list');
+            if (!list) return;
+            list.innerHTML = '';
+            for (const seq of savedSequences) {
+                const div = document.createElement('div');
+                div.style.cssText = 'display:flex; align-items:center; gap:6px; padding:6px 8px; background:rgba(255,255,255,0.05); border-radius:6px; margin-bottom:4px;';
+                const pairCount = seq.pairs.length;
+                const totalCount = seq.startPositions.length;
+                div.innerHTML = `
+                    <span style="flex:1; font-size:11px; color:#ddd;">
+                        #${seq.id} ${formatTime(seq.startTime)}~${formatTime(seq.endTime)} (${pairCount}/${totalCount})
+                    </span>
+                    <button class="btn" style="font-size:10px; padding:2px 6px;" onclick="exportSequenceVideo(${seq.id})">▶ 영상</button>
+                    <button class="btn" style="font-size:10px; padding:2px 6px;" onclick="deleteSequence(${seq.id})">✕</button>
+                `;
+                list.appendChild(div);
+            }
+            document.getElementById('sequence-count').textContent = savedSequences.length;
+        }
+
+        // 합성 영상 생성: 좌=비디오, 우=미니맵 애니메이션
+        function exportSequenceVideo(seqId) {
+            const seq = savedSequences.find(s => s.id === seqId);
+            if (!seq) return;
+
+            const statusEl = document.getElementById('gif-status');
+            statusEl.style.display = 'block';
+            statusEl.textContent = '합성 영상 생성 중...';
+
+            const VW = 640, VH = 360;
+            const MW = 320, MH = 360;
+            const W = VW + MW, H = Math.max(VH, MH);
+            const canvas = document.createElement('canvas');
+            canvas.width = W;
+            canvas.height = H;
+            const ctx = canvas.getContext('2d');
+
+            const fps = 20;
+            const duration = seq.endTime - seq.startTime;
+            const totalFrames = Math.max(1, Math.round(duration * fps));
+
+            const stream = canvas.captureStream(0);
+            const chunks = [];
+            const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+                ? 'video/webm;codecs=vp9' : 'video/webm';
+            const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 4000000 });
+            recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+            recorder.onstop = () => {
+                const blob = new Blob(chunks, { type: 'video/webm' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `sequence_${seq.id}.webm`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                setTimeout(() => URL.revokeObjectURL(url), 5000);
+                statusEl.textContent = '다운로드 완료!';
+                setTimeout(() => { statusEl.style.display = 'none'; }, 3000);
+                showToast(`시퀀스 #${seq.id} 영상 저장 완료!`);
+            };
+
+            function drawMinimapFrame(t) {
+                const padX = MW * (20 / 220);
+                const padY = MH * (5 / 145);
+                const fw = MW * (180 / 220);
+                const fh = MH * (135 / 145);
+                const toX = (fieldX) => VW + padX + (fieldX / fieldWidth) * fw;
+                const toY = (fieldY) => padY + (fieldY / fieldHeight) * fh;
+
+                ctx.save();
+                ctx.beginPath();
+                ctx.rect(VW, 0, MW, MH);
+                ctx.clip();
+                ctx.translate(VW, 0);
+                drawFieldOnCanvas(ctx, MW, MH);
+                ctx.translate(-VW, 0);
+                ctx.restore();
+
+                const easedT = easeInOutCubic(t);
+                const pairedStartIdxs = new Set(seq.pairs.map(p => p.startIdx));
+
+                for (const pair of seq.pairs) {
+                    const s = seq.startPositions[pair.startIdx];
+                    const e = seq.endPositions[pair.endIdx];
+                    if (!s || !e) continue;
+                    const curX = s.x + (e.x - s.x) * easedT;
+                    const curY = s.y + (e.y - s.y) * easedT;
+                    const cx = toX(curX), cy = toY(curY);
+                    const sx = toX(s.x), sy = toY(s.y);
+
+                    ctx.beginPath();
+                    ctx.moveTo(sx, sy);
+                    ctx.lineTo(cx, cy);
+                    ctx.strokeStyle = s.color;
+                    ctx.globalAlpha = 0.3;
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+                    ctx.globalAlpha = 1;
+
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, 5, 0, Math.PI * 2);
+                    ctx.fillStyle = s.color;
+                    ctx.fill();
+                    ctx.strokeStyle = '#fff';
+                    ctx.lineWidth = 1.2;
+                    ctx.stroke();
+                }
+
+                for (let i = 0; i < seq.startPositions.length; i++) {
+                    if (pairedStartIdxs.has(i)) continue;
+                    const s = seq.startPositions[i];
+                    const cx = toX(s.x), cy = toY(s.y);
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, 5, 0, Math.PI * 2);
+                    ctx.fillStyle = s.color;
+                    ctx.globalAlpha = 0.5;
+                    ctx.fill();
+                    ctx.strokeStyle = '#fff';
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+                    ctx.globalAlpha = 1;
+                }
+            }
+
+            let frameIdx = 0;
+            recorder.start();
+
+            function renderNextFrame() {
+                if (frameIdx > totalFrames) {
+                    setTimeout(() => { recorder.stop(); }, 300);
+                    return;
+                }
+                const t = frameIdx / totalFrames;
+                const targetTime = seq.startTime + t * duration;
+
+                video.currentTime = targetTime;
+                video.onseeked = () => {
+                    video.onseeked = null;
+                    ctx.fillStyle = '#000';
+                    ctx.fillRect(0, 0, W, H);
+                    ctx.drawImage(video, 0, 0, VW, VH);
+                    drawMinimapFrame(t);
+
+                    const track = stream.getVideoTracks()[0];
+                    if (track.requestFrame) track.requestFrame();
+
+                    statusEl.textContent = `렌더링: ${frameIdx + 1}/${totalFrames + 1}`;
+                    frameIdx++;
+                    setTimeout(renderNextFrame, 50);
+                };
+            }
+            renderNextFrame();
+        }
+
+        // 버튼 이벤트
         document.getElementById('gif-start-btn').addEventListener('click', saveGifStart);
-        document.getElementById('gif-end-btn').addEventListener('click', toggleGifEndPlace);
+        document.getElementById('gif-end-btn').addEventListener('click', saveGifEnd);
+        document.getElementById('gif-match-undo-btn').addEventListener('click', undoGifMatch);
         document.getElementById('gif-reset-btn').addEventListener('click', () => {
             resetGifState();
-            showToast('GIF 초기화');
+            showToast('초기화 완료');
         });
-        document.getElementById('gif-generate-btn').addEventListener('click', generateMinimapGif);
+        document.getElementById('gif-seq-save-btn').addEventListener('click', saveSequence);
 
         function updateTacticsMinimap() {
             const pointsGroup = document.getElementById('tactics-points');
@@ -4597,7 +4833,7 @@
 
             svg.addEventListener('mousedown', (e) => {
                 if (e.button !== 0) return;
-                if (gifMode === 'edit' || gifMode === 'place') return; // GIF 모드에서는 전술 포인트 드래그 차단
+                if (gifMode === 'match') return; // GIF 매칭 모드에서는 전술 포인트 드래그 차단
                 const { x: svgX, y: svgY } = getSVGCoords(e);
                 const idx = findNearestPoint(svgX, svgY);
                 if (idx >= 0) {
