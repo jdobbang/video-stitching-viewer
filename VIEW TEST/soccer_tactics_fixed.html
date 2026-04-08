@@ -4597,6 +4597,7 @@
 
             svg.addEventListener('mousedown', (e) => {
                 if (e.button !== 0) return;
+                if (gifMode === 'edit' || gifMode === 'place') return; // GIF 모드에서는 전술 포인트 드래그 차단
                 const { x: svgX, y: svgY } = getSVGCoords(e);
                 const idx = findNearestPoint(svgX, svgY);
                 if (idx >= 0) {
