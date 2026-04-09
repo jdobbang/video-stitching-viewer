@@ -704,7 +704,7 @@ def batch_stitch(left_dir, right_dir, calibration_path, output_dir,
 
 def stitch_from_iterator(frame_iterator, calibration_path, output_dir,
                          method='cylindrical', focal_weight='auto', fps=30,
-                         no_video=False, total_frames=None):
+                         no_video=False, total_frames=None, audio_source=None):
     """메모리 이터레이터에서 프레임을 받아 스티칭한다 (디스크 I/O 최소화).
 
     Args:
@@ -746,7 +746,8 @@ def stitch_from_iterator(frame_iterator, calibration_path, output_dir,
     print(f"\n  Stitched {count} frames total")
 
     if not no_video and count > 0:
-        create_video(frames_dir, output_dir / 'panorama.mp4', fps=fps)
+        create_video(frames_dir, output_dir / 'panorama.mp4', fps=fps,
+                     audio_source=audio_source)
 
     return output_dir
 
@@ -755,8 +756,12 @@ def stitch_from_iterator(frame_iterator, calibration_path, output_dir,
 # VIDEO
 # ============================================================================
 
-def create_video(frames_dir, output_video, fps=30, codec='mp4v'):
-    """스티칭된 프레임들로 영상을 생성한다."""
+def create_video(frames_dir, output_video, fps=30, codec='mp4v', audio_source=None):
+    """스티칭된 프레임들로 영상을 생성한다.
+
+    Args:
+        audio_source: 오디오를 가져올 원본 영상 경로 (예: left.MOV). None이면 무음.
+    """
     frames_dir = Path(frames_dir)
     output_video = Path(output_video)
 
@@ -795,15 +800,35 @@ def create_video(frames_dir, output_video, fps=30, codec='mp4v'):
     try:
         import subprocess
         web_output = output_video.with_suffix('.web.mp4')
-        cmd = ['ffmpeg', '-y', '-i', str(output_video),
-               '-c:v', 'libx264', '-preset', 'medium',
-               '-crf', '23', '-pix_fmt', 'yuv420p',
-               '-movflags', '+faststart', str(web_output)]
+
+        if audio_source and Path(audio_source).exists():
+            # 오디오 포함: 원본 영상에서 오디오 추출하여 합치기
+            cmd = ['ffmpeg', '-y',
+                   '-i', str(output_video),
+                   '-i', str(audio_source),
+                   '-c:v', 'libx264', '-preset', 'medium',
+                   '-crf', '23', '-pix_fmt', 'yuv420p',
+                   '-c:a', 'aac', '-b:a', '192k',
+                   '-map', '0:v:0', '-map', '1:a:0',
+                   '-shortest',
+                   '-movflags', '+faststart', str(web_output)]
+            print(f"Muxing audio from: {audio_source}")
+        else:
+            # 무음 비디오
+            cmd = ['ffmpeg', '-y', '-i', str(output_video),
+                   '-c:v', 'libx264', '-preset', 'medium',
+                   '-crf', '23', '-pix_fmt', 'yuv420p',
+                   '-movflags', '+faststart', str(web_output)]
+
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode == 0:
-            print(f"Web-compatible video saved: {web_output}")
-    except Exception:
-        pass
+            has_audio = audio_source and Path(audio_source).exists()
+            print(f"Web-compatible video saved: {web_output}" +
+                  (" (with audio)" if has_audio else " (no audio)"))
+        else:
+            print(f"FFmpeg error: {result.stderr[:200]}")
+    except Exception as e:
+        print(f"FFmpeg failed: {e}")
 
 
 # ============================================================================
@@ -835,6 +860,8 @@ Examples:
     parser.add_argument('--video-only', action='store_true',
                         help='Only create video from existing frames')
     parser.add_argument('--frames', type=str, help='Frames directory (--video-only)')
+    parser.add_argument('--audio', type=str, default=None,
+                        help='Audio source video file (e.g. left.MOV) to mux into output')
 
     args = parser.parse_args()
 
@@ -845,7 +872,8 @@ Examples:
     if args.video_only:
         if args.frames:
             frames_dir = Path(args.frames)
-        create_video(frames_dir, output_dir / 'panorama.mp4', fps=args.fps)
+        create_video(frames_dir, output_dir / 'panorama.mp4', fps=args.fps,
+                     audio_source=args.audio)
     else:
         if not all([args.left, args.right, args.calib]):
             parser.error("--left, --right, --calib are required for stitching")
@@ -859,7 +887,9 @@ Examples:
             method=args.method, num_workers=args.workers, focal_weight=fw)
 
         if not args.no_video:
-            create_video(frames_dir, output_dir / 'panorama.mp4', fps=args.fps)
+            audio_src = args.audio or args.left
+            create_video(frames_dir, output_dir / 'panorama.mp4', fps=args.fps,
+                         audio_source=audio_src)
             print(f"\nPipeline complete!")
             print(f"  Frames: {frames_dir}")
             print(f"  Video: {output_dir / 'panorama.mp4'}")

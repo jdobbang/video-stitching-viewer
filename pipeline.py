@@ -133,6 +133,9 @@ def step_stitch(args):
 
     from stitch_video import stitch_from_iterator, batch_stitch, create_video
 
+    # 좌측 MOV 오디오를 최종 비디오에 포함
+    audio_src = args.left if hasattr(args, 'left') and args.left else None
+
     # 스트리밍 경로: 메모리 이터레이터 사용
     if hasattr(args, '_frame_iterator') and args._frame_iterator is not None:
         total = getattr(args, '_total_frames', None)
@@ -141,6 +144,7 @@ def step_stitch(args):
             method=args.method, focal_weight='auto',
             fps=int(args.fps) if args.fps else 30,
             total_frames=total,
+            audio_source=audio_src,
         )
     else:
         # 디스크 기반 폴백 (--skip-sync 등)
@@ -158,6 +162,7 @@ def step_stitch(args):
                 frames_out,
                 os.path.join(args.output, "panorama.mp4"),
                 fps=int(args.fps),
+                audio_source=audio_src,
             )
 
     print(f"      Output: {args.output}")

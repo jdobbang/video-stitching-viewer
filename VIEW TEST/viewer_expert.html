@@ -23,27 +23,31 @@
             border: 1px solid rgba(255,255,255,0.1);
         }
 
-        #video-controls {
-            bottom: 80px;
-            left: 50%;
-            transform: translateX(-50%);
-            display: flex;
-            gap: 16px;
+        #progress-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            display: none;
             align-items: center;
+            gap: 10px;
+            padding: 8px 16px;
+            background: rgba(0,0,0,0.9);
+            border-top: 1px solid rgba(255,255,255,0.1);
+            z-index: 210;
             font-size: 13px;
-            z-index: 200;
-            pointer-events: auto;
-            position: relative;
+            color: white;
         }
 
         #controls {
-            bottom: 20px;
+            bottom: 50px;
             left: 50%;
             transform: translateX(-50%);
             display: flex;
             gap: 24px;
             align-items: center;
             font-size: 13px;
+            z-index: 200;
         }
 
         #mode-panel {
@@ -94,8 +98,8 @@
             accent-color: #4a9eff;
         }
 
-        #progress {
-            width: 300px;
+        #progress-wrapper {
+            flex: 1;
         }
 
         .value {
@@ -179,6 +183,203 @@
         }
         #toast.active { opacity: 1; }
 
+        /* Bookmark panel */
+        #bookmark-panel {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            width: 320px;
+            max-height: calc(100vh - 40px);
+            display: none;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 150;
+            overflow: hidden;
+        }
+        #bookmark-panel .tag-row {
+            display: flex;
+            gap: 4px;
+        }
+        #bookmark-panel .tag-btn {
+            flex: 1;
+            padding: 6px 4px;
+            border-radius: 6px;
+            border: 2px solid rgba(255,255,255,0.2);
+            background: rgba(255,255,255,0.05);
+            color: white;
+            cursor: pointer;
+            font-size: 16px;
+            text-align: center;
+            transition: all 0.2s;
+        }
+        #bookmark-panel .tag-btn:hover { background: rgba(255,255,255,0.15); }
+        #bookmark-panel .tag-btn.active { border-color: #4a9eff; background: rgba(74,158,255,0.2); }
+
+        #bookmark-input-row {
+            display: flex;
+            gap: 6px;
+        }
+        #bookmark-input-row input {
+            flex: 1;
+            padding: 8px 10px;
+            border-radius: 6px;
+            border: 1px solid rgba(255,255,255,0.2);
+            background: rgba(255,255,255,0.08);
+            color: white;
+            font-size: 13px;
+            outline: none;
+        }
+        #bookmark-input-row input:focus { border-color: #4a9eff; }
+        #bookmark-input-row input::placeholder { color: rgba(255,255,255,0.35); }
+
+        #bookmark-list {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            min-height: 0;
+        }
+        .bookmark-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 10px;
+            border-radius: 8px;
+            background: rgba(255,255,255,0.05);
+            font-size: 13px;
+            transition: background 0.15s;
+        }
+        .bookmark-item:hover { background: rgba(255,255,255,0.1); }
+        .bookmark-item .bm-emoji { font-size: 18px; flex-shrink: 0; }
+        .bookmark-item .bm-time {
+            color: #4a9eff;
+            cursor: pointer;
+            font-family: monospace;
+            font-weight: bold;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        .bookmark-item .bm-time:hover { text-decoration: underline; }
+        .bookmark-item .bm-text {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .bookmark-item .bm-del {
+            cursor: pointer;
+            opacity: 0.3;
+            font-size: 14px;
+            flex-shrink: 0;
+            padding: 2px 4px;
+        }
+        .bookmark-item .bm-del:hover { opacity: 1; color: #ef4444; }
+
+        #bookmark-actions {
+            display: flex;
+            gap: 6px;
+        }
+
+        /* Progress bar marker overlay */
+        #progress-wrapper {
+            position: relative;
+            flex: 1;
+            overflow: visible;
+        }
+        #progress-markers {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+            overflow: visible;
+        }
+        .progress-marker {
+            position: absolute;
+            bottom: 0;
+            transform: translateX(-50%);
+            pointer-events: auto;
+            cursor: pointer;
+            z-index: 2;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            transition: all 0.15s;
+        }
+        .progress-marker .marker-bar {
+            width: 3px;
+            height: 32px;
+            border-radius: 2px;
+            transition: all 0.15s;
+        }
+        .progress-marker .marker-emoji {
+            font-size: 12px;
+            line-height: 1;
+            margin-bottom: 1px;
+            transition: all 0.15s;
+        }
+        .progress-marker:hover .marker-bar {
+            width: 5px;
+            height: 38px;
+            box-shadow: 0 0 8px currentColor;
+        }
+        .progress-marker:hover .marker-emoji {
+            font-size: 16px;
+        }
+        .marker-tooltip {
+            position: absolute;
+            bottom: calc(100% + 4px);
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.95);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            white-space: nowrap;
+            display: none;
+            pointer-events: none;
+        }
+        .progress-marker:hover .marker-tooltip { display: block; }
+
+        /* Collapsible panel toggle */
+        .panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            user-select: none;
+            margin: -16px -20px 10px;
+            padding: 10px 16px;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+        }
+        .panel-header:hover { background: rgba(255,255,255,0.05); }
+        .panel-header .panel-title {
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .panel-header .panel-toggle {
+            font-size: 10px;
+            color: rgba(255,255,255,0.4);
+            transition: transform 0.2s;
+        }
+        .panel-collapsed .panel-toggle { transform: rotate(-90deg); }
+        .panel-collapsed .panel-body { display: none !important; }
+
+        /* Audio waveform */
+        #audio-waveform {
+            position: absolute;
+            bottom: 100%;
+            left: 0;
+            width: 100%;
+            height: 28px;
+            pointer-events: none;
+            opacity: 0.5;
+        }
+
         /* Auto-hide UI */
         .auto-hide {
             transition: opacity 0.4s ease;
@@ -212,62 +413,103 @@
     </div>
 
     <div class="panel auto-hide" id="info" style="display: none;">
-        <div>🖱️ 드래그: 시점 이동 &nbsp;|&nbsp; 클릭: 해당 지점으로 이동 &nbsp;|&nbsp; 🔍 스크롤: 줌</div>
-        <div style="margin-top: 4px; font-size: 11px; color: rgba(255,255,255,0.5);">
-            A/W/D/S 이동 &nbsp;|&nbsp; Q/E 회전 &nbsp;|&nbsp; R/F 줌인/아웃 &nbsp;|&nbsp; ,/. 프레임이동 &nbsp;|&nbsp; P 스크린샷 &nbsp;|&nbsp; F11 풀스크린
+        <div class="panel-header" onclick="togglePanel(this)">
+            <span class="panel-title">ℹ️ 조작법</span>
+            <span class="panel-toggle">▼</span>
         </div>
-    </div>
-
-    <div class="panel auto-hide" id="mode-panel" style="display: none;">
-        <div style="font-size: 11px; color: rgba(255,255,255,0.6); margin-bottom: 4px;">투영 모드</div>
-        <button class="btn active" data-mode="cylinder">🔵 Cylinder</button>
-        <button class="btn" data-mode="sphere">🌐 Sphere</button>
-        <div style="font-size: 11px; color: rgba(255,255,255,0.6); margin: 8px 0 4px;">도구</div>
-        <button class="btn" id="screenshot-btn">📸 스크린샷 (P)</button>
-        <button class="btn" id="fullscreen-btn">⛶ 풀스크린 (F11)</button>
-    </div>
-
-    <div class="panel auto-hide" id="video-controls" style="display: none;">
-        <button class="btn btn-icon" id="play-btn">▶</button>
-
-        <div class="control-group">
-            <div class="control-row">
-                <span class="value" id="current-time">0:00</span>
-                <input type="range" id="progress" min="0" max="100" value="0">
-                <span class="value" id="duration">0:00</span>
+        <div class="panel-body">
+            <div>🖱️ 드래그: 시점 이동 &nbsp;|&nbsp; 클릭: 해당 지점으로 이동 &nbsp;|&nbsp; 🔍 스크롤: 줌</div>
+            <div style="margin-top: 4px; font-size: 11px; color: rgba(255,255,255,0.5);">
+                A/W/D/S 이동 &nbsp;|&nbsp; Q/E 회전 &nbsp;|&nbsp; R/F 줌인/아웃 &nbsp;|&nbsp; ,/. 프레임이동 &nbsp;|&nbsp; P 스크린샷 &nbsp;|&nbsp; F11 풀스크린
             </div>
         </div>
+    </div>
 
-        <div class="control-group">
-            <label>속도</label>
-            <select id="speed" style="background: #222; border: 1px solid rgba(255,255,255,0.2); color: white; padding: 4px 8px; border-radius: 4px;">
-                <option value="0.25" style="background:#222; color:white;">0.25x</option>
-                <option value="0.5" style="background:#222; color:white;">0.5x</option>
-                <option value="1" selected style="background:#222; color:white;">1x</option>
-                <option value="1.5" style="background:#222; color:white;">1.5x</option>
-                <option value="2" style="background:#222; color:white;">2x</option>
-            </select>
+    <div class="panel auto-hide" id="mode-panel" style="display: none; right: 340px;">
+        <div class="panel-header" onclick="togglePanel(this)">
+            <span class="panel-title">🎛️ 설정</span>
+            <span class="panel-toggle">▼</span>
         </div>
+        <div class="panel-body" style="display:flex; flex-direction:column; gap:8px;">
+            <div style="font-size: 11px; color: rgba(255,255,255,0.6);">투영 모드</div>
+            <button class="btn active" data-mode="cylinder">🔵 Cylinder</button>
+            <button class="btn" data-mode="sphere">🌐 Sphere</button>
+            <div style="font-size: 11px; color: rgba(255,255,255,0.6); margin-top: 4px;">도구</div>
+            <button class="btn" id="screenshot-btn">📸 스크린샷 (P)</button>
+            <button class="btn" id="fullscreen-btn">⛶ 풀스크린 (F11)</button>
+        </div>
+    </div>
+
+    <!-- 북마크/이벤트 패널 -->
+    <div class="panel" id="bookmark-panel">
+        <div class="panel-header" onclick="togglePanel(this)">
+            <span class="panel-title">📌 이벤트 메모 (<span id="bookmark-count">0</span>)</span>
+            <span class="panel-toggle">▼</span>
+        </div>
+        <div class="panel-body" style="display:flex; flex-direction:column; gap:10px;">
+            <div class="tag-row">
+                <div class="tag-btn active" data-tag="goal" title="골">⚽</div>
+                <div class="tag-btn active" data-tag="attack" title="공격">⚔️</div>
+                <div class="tag-btn active" data-tag="defense" title="수비">🛡️</div>
+                <div class="tag-btn active" data-tag="feedback" title="피드백">📋</div>
+                <div class="tag-btn active" data-tag="memo" title="메모">📝</div>
+            </div>
+            <div id="bookmark-input-row">
+                <input type="text" id="bookmark-text" placeholder="메모 입력... (M키로 빠른 추가)">
+                <button class="btn" id="bookmark-add-btn" style="width: auto; padding: 8px 14px;">+ 추가</button>
+            </div>
+            <div id="bookmark-list"></div>
+            <div id="bookmark-actions">
+                <button class="btn" id="bookmark-save-btn" style="flex:1;">💾 저장</button>
+                <button class="btn" id="bookmark-load-btn" style="flex:1;">📂 불러오기</button>
+                <input type="file" id="bookmark-file-input" accept=".json" style="display:none;">
+            </div>
+        </div>
+    </div>
+
+    <!-- 하단 풀와이드 재생바 -->
+    <div id="progress-bar">
+        <button class="btn btn-icon" id="play-btn" style="flex-shrink:0;">▶</button>
+        <span class="value" id="current-time" style="min-width:50px;">0:00</span>
+        <div id="progress-wrapper">
+            <canvas id="audio-waveform"></canvas>
+            <input type="range" id="progress" min="0" max="100" value="0" style="width:100%;">
+            <div id="progress-markers"></div>
+        </div>
+        <span class="value" id="duration" style="min-width:50px;">0:00</span>
+        <select id="speed" style="background: #222; border: 1px solid rgba(255,255,255,0.2); color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; flex-shrink:0;">
+            <option value="0.25" style="background:#222; color:white;">0.25x</option>
+            <option value="0.5" style="background:#222; color:white;">0.5x</option>
+            <option value="1" selected style="background:#222; color:white;">1x</option>
+            <option value="1.5" style="background:#222; color:white;">1.5x</option>
+            <option value="2" style="background:#222; color:white;">2x</option>
+        </select>
     </div>
 
     <div class="panel auto-hide" id="controls" style="display: none;">
-        <div class="control-group">
-            <label>Camera FOV</label>
-            <div class="control-row">
-                <input type="range" id="fov" min="1" max="90" value="50">
-                <span class="value" id="fov-val">50°</span>
-            </div>
+        <div class="panel-header" onclick="togglePanel(this)">
+            <span class="panel-title">🎥 카메라</span>
+            <span class="panel-toggle">▼</span>
         </div>
-
-        <div class="control-group">
-            <label>비디오 회전</label>
-            <div class="control-row">
-                <button class="btn" id="rotate-ccw" style="width: auto; padding: 8px 12px;" title="반시계방향 90°">↺</button>
-                <button class="btn" id="rotate-cw" style="width: auto; padding: 8px 12px;" title="시계방향 90°">↻</button>
+        <div class="panel-body" style="display:flex; gap:24px; align-items:center;">
+            <div class="control-group">
+                <label>Camera FOV</label>
+                <div class="control-row">
+                    <input type="range" id="fov" min="1" max="90" value="50">
+                    <span class="value" id="fov-val">50°</span>
+                </div>
             </div>
-        </div>
 
-        <button class="btn" id="reset" style="width: auto; padding: 8px 16px;">⟲ Reset</button>
+            <div class="control-group">
+                <label>비디오 회전</label>
+                <div class="control-row">
+                    <button class="btn" id="rotate-ccw" style="width: auto; padding: 8px 12px;" title="반시계방향 90°">↺</button>
+                    <button class="btn" id="rotate-cw" style="width: auto; padding: 8px 12px;" title="시계방향 90°">↻</button>
+                </div>
+            </div>
+
+            <button class="btn" id="reset" style="width: auto; padding: 8px 16px;">⟲ Reset</button>
+        </div>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -311,16 +553,33 @@
             dropZone.classList.remove('dragover');
         });
 
+        let currentVideoFileName = '';
+        let pendingBookmarkData = null;
+
         dropZone.addEventListener('drop', (e) => {
             e.preventDefault();
             dropZone.classList.remove('dragover');
             const files = Array.from(e.dataTransfer.files);
+            let videoFile = null, jsonFile = null;
             for (const file of files) {
                 if (file.type.startsWith('video/') || /\.(mp4|webm|mov)$/i.test(file.name)) {
-                    loadVideo(file);
-                    return;
+                    videoFile = file;
+                } else if (file.name.endsWith('.json')) {
+                    jsonFile = file;
                 }
             }
+            if (jsonFile) {
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    if (video) {
+                        loadBookmarksFromJSON(ev.target.result);
+                    } else {
+                        pendingBookmarkData = ev.target.result;
+                    }
+                };
+                reader.readAsText(jsonFile);
+            }
+            if (videoFile) loadVideo(videoFile);
         });
 
         fileInput.addEventListener('change', (e) => {
@@ -329,6 +588,7 @@
         });
 
         function loadVideo(file) {
+            currentVideoFileName = file.name.replace(/\.[^.]+$/, '');
             filePanel.style.display = 'none';
             document.getElementById('loading').style.display = 'block';
 
@@ -351,7 +611,13 @@
             });
 
             video.addEventListener('error', () => {
-                document.getElementById('loading').textContent = '비디오 로드 실패';
+                const loading = document.getElementById('loading');
+                const err = video.error;
+                if (err && err.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED) {
+                    loading.innerHTML = '⚠️ 코덱 미지원<br><span style="font-size:13px; color:rgba(255,255,255,0.6);">브라우저는 H.264 코덱만 재생 가능합니다.<br>OpenCV mp4v 파일은 재생 불가 — <b>.web.mp4</b> 파일을 사용하세요.</span>';
+                } else {
+                    loading.textContent = '비디오 로드 실패';
+                }
             });
 
             video.load();
@@ -360,8 +626,15 @@
         function showControls() {
             document.getElementById('info').style.display = 'block';
             document.getElementById('mode-panel').style.display = 'flex';
-            document.getElementById('video-controls').style.display = 'flex';
+            document.getElementById('progress-bar').style.display = 'flex';
             document.getElementById('controls').style.display = 'flex';
+            document.getElementById('bookmark-panel').style.display = 'flex';
+            if (pendingBookmarkData) {
+                setTimeout(() => {
+                    loadBookmarksFromJSON(pendingBookmarkData);
+                    pendingBookmarkData = null;
+                }, 300);
+            }
         }
 
         function formatTime(seconds) {
@@ -522,6 +795,19 @@
                     stepFrame(1);
                     return;
                 }
+                // M: 메모 추가 (입력란 포커스)
+                if (e.code === 'KeyM') {
+                    e.preventDefault();
+                    const input = document.getElementById('bookmark-text');
+                    if (document.activeElement === input) return;
+                    if (!video.paused) {
+                        video.pause();
+                        document.getElementById('play-btn').textContent = '▶';
+                    }
+                    input.focus();
+                    showToast('📌 메모 입력... (Enter로 추가)');
+                    return;
+                }
 
                 const mapped = codeMap[e.code];
                 if (mapped) {
@@ -566,6 +852,9 @@
             // 스크린샷 / 풀스크린 버튼
             document.getElementById('screenshot-btn').addEventListener('click', takeScreenshot);
             document.getElementById('fullscreen-btn').addEventListener('click', toggleFullscreen);
+
+            // 오디오 파형 분석
+            analyzeAudioWaveform();
 
             // Start playback
             video.play().then(() => {
@@ -645,8 +934,8 @@
 
         function isClickOnUI(event) {
             const el = event.target;
-            if (el.closest('#video-controls') || el.closest('#controls') || el.closest('#mode-panel') ||
-                el.closest('#info') || el.closest('#file-panel') ||
+            if (el.closest('#controls') || el.closest('#mode-panel') ||
+                el.closest('#progress-bar') || el.closest('#info') || el.closest('#file-panel') || el.closest('#bookmark-panel') ||
                 el.tagName === 'INPUT' || el.tagName === 'SELECT' || el.tagName === 'BUTTON') {
                 return true;
             }
@@ -858,6 +1147,365 @@
             clearTimeout(t._timer);
             t._timer = setTimeout(() => t.classList.remove('active'), 1500);
         }
+
+        // === 북마크/이벤트 메모 시스템 ===
+        const TAG_CONFIG = {
+            goal:     { emoji: '⚽', label: '골',     color: '#ef4444' },
+            attack:   { emoji: '⚔️', label: '공격',   color: '#f97316' },
+            defense:  { emoji: '🛡️', label: '수비',   color: '#3b82f6' },
+            feedback: { emoji: '📋', label: '피드백', color: '#a855f7' },
+            memo:     { emoji: '📝', label: '메모',   color: '#22c55e' },
+        };
+        let bookmarks = []; // [{ id, time, tag, text }]
+        let bookmarkIdCounter = 0;
+        let currentTag = 'goal';
+        let activeFilters = new Set(['goal', 'attack', 'defense', 'feedback', 'memo']);
+
+        // 태그 버튼: 클릭 = 입력태그 선택, Ctrl+클릭 = 필터 토글
+        document.querySelectorAll('.tag-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const tag = btn.dataset.tag;
+                if (e.ctrlKey || e.metaKey) {
+                    // Ctrl+클릭: 필터 토글
+                    if (activeFilters.has(tag)) {
+                        if (activeFilters.size > 1) {
+                            activeFilters.delete(tag);
+                            btn.classList.remove('active');
+                        }
+                    } else {
+                        activeFilters.add(tag);
+                        btn.classList.add('active');
+                    }
+                    renderBookmarkList();
+                    renderProgressMarkers();
+                } else {
+                    // 일반 클릭: 해당 태그만 필터 (단독 선택)
+                    if (activeFilters.size === 1 && activeFilters.has(tag)) {
+                        // 이미 단독이면 전체 선택으로 복귀
+                        activeFilters = new Set(['goal', 'attack', 'defense', 'feedback', 'memo']);
+                        document.querySelectorAll('.tag-btn').forEach(b => b.classList.add('active'));
+                    } else {
+                        activeFilters = new Set([tag]);
+                        document.querySelectorAll('.tag-btn').forEach(b => b.classList.remove('active'));
+                        btn.classList.add('active');
+                    }
+                    currentTag = tag;
+                    renderBookmarkList();
+                    renderProgressMarkers();
+                }
+            });
+        });
+
+        // 추가 버튼
+        document.getElementById('bookmark-add-btn').addEventListener('click', addBookmark);
+
+        // Enter키로 추가
+        document.getElementById('bookmark-text').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                addBookmark();
+            }
+            e.stopPropagation(); // 뷰어 키보드 단축키 방지
+        });
+        // 입력란에서 다른 키 이벤트 전파 차단
+        document.getElementById('bookmark-text').addEventListener('keyup', (e) => e.stopPropagation());
+
+        function addBookmark() {
+            if (!video) return;
+            const input = document.getElementById('bookmark-text');
+            const text = input.value.trim();
+            const tag = currentTag;
+            const time = video.currentTime;
+
+            bookmarks.push({
+                id: ++bookmarkIdCounter,
+                time,
+                tag,
+                text: text || TAG_CONFIG[tag].label,
+            });
+            bookmarks.sort((a, b) => a.time - b.time);
+            input.value = '';
+            input.blur();
+            renderBookmarkList();
+            renderProgressMarkers();
+            autoSave();
+            showToast(`${TAG_CONFIG[tag].emoji} ${formatTime(time)} 이벤트 추가됨`);
+        }
+
+        function deleteBookmark(id) {
+            bookmarks = bookmarks.filter(b => b.id !== id);
+            renderBookmarkList();
+            renderProgressMarkers();
+            autoSave();
+        }
+
+        function seekToBookmark(time) {
+            if (!video) return;
+            video.currentTime = time;
+            showToast(`⏩ ${formatTime(time)}으로 이동`);
+        }
+
+        function editBookmark(id, el) {
+            const bm = bookmarks.find(b => b.id === id);
+            if (!bm) return;
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.value = bm.text;
+            input.style.cssText = 'flex:1; padding:4px 6px; border-radius:4px; border:1px solid #4a9eff; background:rgba(255,255,255,0.1); color:white; font-size:13px; outline:none;';
+            el.replaceWith(input);
+            input.focus();
+            input.select();
+
+            const commit = () => {
+                const newText = input.value.trim();
+                if (newText) bm.text = newText;
+                renderBookmarkList();
+                renderProgressMarkers();
+                autoSave();
+            };
+            input.addEventListener('blur', commit);
+            input.addEventListener('keydown', (e) => {
+                e.stopPropagation();
+                if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+                if (e.key === 'Escape') { input.value = bm.text; input.blur(); }
+            });
+            input.addEventListener('keyup', (e) => e.stopPropagation());
+        }
+
+        function renderBookmarkList() {
+            const list = document.getElementById('bookmark-list');
+            const filtered = bookmarks.filter(b => activeFilters.has(b.tag));
+            document.getElementById('bookmark-count').textContent = `${filtered.length}/${bookmarks.length}`;
+
+            if (filtered.length === 0) {
+                const msg = bookmarks.length === 0
+                    ? '이벤트가 없습니다<br>M키 또는 + 버튼으로 추가'
+                    : '선택된 카테고리에 이벤트가 없습니다';
+                list.innerHTML = `<div style="text-align:center; color:rgba(255,255,255,0.3); padding:20px; font-size:12px;">${msg}</div>`;
+                return;
+            }
+
+            list.innerHTML = filtered.map(b => {
+                const cfg = TAG_CONFIG[b.tag] || TAG_CONFIG.memo;
+                return `<div class="bookmark-item" data-id="${b.id}">
+                    <span class="bm-emoji">${cfg.emoji}</span>
+                    <span class="bm-time" onclick="seekToBookmark(${b.time})" style="color:${cfg.color}">${formatTime(b.time)}</span>
+                    <span class="bm-text" ondblclick="editBookmark(${b.id}, this)">${escapeHtml(b.text)}</span>
+                    <span class="bm-del" onclick="deleteBookmark(${b.id})">✕</span>
+                </div>`;
+            }).join('');
+        }
+
+        function escapeHtml(str) {
+            const d = document.createElement('div');
+            d.textContent = str;
+            return d.innerHTML;
+        }
+
+        function renderProgressMarkers() {
+            const container = document.getElementById('progress-markers');
+            if (!video || !video.duration) { container.innerHTML = ''; return; }
+            const dur = video.duration;
+
+            container.innerHTML = bookmarks.filter(b => activeFilters.has(b.tag)).map(b => {
+                const cfg = TAG_CONFIG[b.tag] || TAG_CONFIG.memo;
+                const pct = (b.time / dur) * 100;
+                return `<div class="progress-marker" style="left:${pct}%; color:${cfg.color};" onclick="seekToBookmark(${b.time})">
+                    <div class="marker-emoji">${cfg.emoji}</div>
+                    <div class="marker-bar" style="background:${cfg.color};"></div>
+                    <div class="marker-tooltip">${cfg.emoji} ${formatTime(b.time)} ${escapeHtml(b.text)}</div>
+                </div>`;
+            }).join('');
+        }
+
+        // === File System Access API 기반 로컬 저장 ===
+        let savedFileHandle = null; // 한번 선택하면 이후 자동 덮어쓰기
+
+        function buildJSON() {
+            return JSON.stringify({
+                video: currentVideoFileName,
+                created: new Date().toISOString(),
+                events: bookmarks.map(b => ({ time: b.time, tag: b.tag, text: b.text }))
+            }, null, 2);
+        }
+
+        async function saveBookmarks() {
+            if (bookmarks.length === 0) { showToast('저장할 이벤트가 없습니다'); return; }
+            const data = buildJSON();
+
+            // File System Access API 지원 시
+            if (window.showSaveFilePicker) {
+                try {
+                    if (!savedFileHandle) {
+                        savedFileHandle = await window.showSaveFilePicker({
+                            suggestedName: `events_${currentVideoFileName || 'video'}.json`,
+                            types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }],
+                        });
+                    }
+                    const writable = await savedFileHandle.createWritable();
+                    await writable.write(data);
+                    await writable.close();
+                    showToast(`💾 ${bookmarks.length}개 이벤트 저장됨 (${savedFileHandle.name})`);
+                } catch (err) {
+                    if (err.name === 'AbortError') return; // 사용자 취소
+                    // 권한 만료 등 → 핸들 초기화 후 재시도
+                    savedFileHandle = null;
+                    fallbackDownload(data);
+                }
+            } else {
+                fallbackDownload(data);
+            }
+        }
+
+        function fallbackDownload(data) {
+            const blob = new Blob([data], { type: 'application/json' });
+            const link = document.createElement('a');
+            link.download = `events_${currentVideoFileName || 'video'}.json`;
+            link.href = URL.createObjectURL(blob);
+            link.click();
+            URL.revokeObjectURL(link.href);
+            showToast(`💾 ${bookmarks.length}개 이벤트 저장됨 (다운로드)`);
+        }
+
+        // 자동 저장: 북마크 변경 시마다 (핸들이 있으면)
+        async function autoSave() {
+            if (!savedFileHandle || bookmarks.length === 0) return;
+            try {
+                const writable = await savedFileHandle.createWritable();
+                await writable.write(buildJSON());
+                await writable.close();
+            } catch (e) { /* 조용히 실패 */ }
+        }
+
+        document.getElementById('bookmark-save-btn').addEventListener('click', saveBookmarks);
+
+        // JSON 불러오기
+        async function loadBookmarks() {
+            if (window.showOpenFilePicker) {
+                try {
+                    const [handle] = await window.showOpenFilePicker({
+                        types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }],
+                    });
+                    savedFileHandle = handle; // 불러온 파일 핸들 유지 → 이후 저장 시 같은 파일에 덮어쓰기
+                    const file = await handle.getFile();
+                    const text = await file.text();
+                    loadBookmarksFromJSON(text);
+                } catch (err) {
+                    if (err.name !== 'AbortError') showToast('파일 열기 실패');
+                }
+            } else {
+                document.getElementById('bookmark-file-input').click();
+            }
+        }
+
+        document.getElementById('bookmark-load-btn').addEventListener('click', loadBookmarks);
+        document.getElementById('bookmark-file-input').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => loadBookmarksFromJSON(ev.target.result);
+            reader.readAsText(file);
+            e.target.value = '';
+        });
+
+        function loadBookmarksFromJSON(jsonStr) {
+            try {
+                const data = JSON.parse(jsonStr);
+                const events = data.events || data;
+                if (!Array.isArray(events)) throw new Error('Invalid format');
+                bookmarks = events.map(ev => ({
+                    id: ++bookmarkIdCounter,
+                    time: ev.time,
+                    tag: ev.tag || 'memo',
+                    text: ev.text || '',
+                }));
+                bookmarks.sort((a, b) => a.time - b.time);
+                renderBookmarkList();
+                renderProgressMarkers();
+                showToast(`📂 ${bookmarks.length}개 이벤트 불러옴`);
+            } catch (err) {
+                showToast('JSON 파싱 실패');
+            }
+        }
+
+        // 초기 렌더
+        renderBookmarkList();
+
+        // === 패널 토글 ===
+        function togglePanel(headerEl) {
+            const panel = headerEl.closest('.panel');
+            panel.classList.toggle('panel-collapsed');
+        }
+
+        // === 오디오 파형 분석 + 렌더링 ===
+        async function analyzeAudioWaveform() {
+            if (!video || !video.src) return;
+            try {
+                const resp = await fetch(video.src);
+                const arrayBuffer = await resp.arrayBuffer();
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+                audioCtx.close();
+
+                // 채널 데이터 → 다운샘플링
+                const rawData = audioBuffer.getChannelData(0);
+                const canvas = document.getElementById('audio-waveform');
+                const barCount = Math.min(canvas.offsetWidth || 600, 800);
+                const samplesPerBar = Math.floor(rawData.length / barCount);
+                const peaks = [];
+                for (let i = 0; i < barCount; i++) {
+                    let sum = 0;
+                    const start = i * samplesPerBar;
+                    for (let j = start; j < start + samplesPerBar && j < rawData.length; j++) {
+                        sum += Math.abs(rawData[j]);
+                    }
+                    peaks.push(sum / samplesPerBar);
+                }
+                // 정규화
+                const maxPeak = Math.max(...peaks, 0.001);
+                const normalizedPeaks = peaks.map(p => p / maxPeak);
+
+                drawWaveform(normalizedPeaks);
+                // 리사이즈 시 다시 그리기
+                window._waveformPeaks = normalizedPeaks;
+                showToast('🔊 오디오 파형 로드됨');
+            } catch (e) {
+                console.log('오디오 파형 분석 실패:', e.message);
+                showToast('🔇 오디오 트랙 없음 (파형 표시 불가)');
+            }
+        }
+
+        function drawWaveform(peaks) {
+            const canvas = document.getElementById('audio-waveform');
+            if (!canvas || !peaks || peaks.length === 0) return;
+            const rect = canvas.parentElement.getBoundingClientRect();
+            const dpr = window.devicePixelRatio || 1;
+            const w = rect.width;
+            const h = 28;
+            canvas.width = w * dpr;
+            canvas.height = h * dpr;
+            canvas.style.width = w + 'px';
+            canvas.style.height = h + 'px';
+
+            const ctx = canvas.getContext('2d');
+            ctx.scale(dpr, dpr);
+            ctx.clearRect(0, 0, w, h);
+
+            const barW = w / peaks.length;
+            for (let i = 0; i < peaks.length; i++) {
+                const barH = Math.max(1, peaks[i] * h * 0.9);
+                const x = i * barW;
+                ctx.fillStyle = `rgba(74, 158, 255, ${0.3 + peaks[i] * 0.5})`;
+                ctx.fillRect(x, h - barH, Math.max(barW - 0.5, 0.5), barH);
+            }
+        }
+
+        // 리사이즈 시 파형 다시 그리기
+        const _origOnResize = onResize;
+        onResize = function() {
+            _origOnResize();
+            if (window._waveformPeaks) drawWaveform(window._waveformPeaks);
+        };
     </script>
 </body>
 </html>
