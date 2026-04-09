@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panorama Video Viewer</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            overflow: hidden;
+            background: #0a0a0f;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        #container { width: 100vw; height: 100vh; }
+
+        .panel {
+            position: absolute;
+            background: rgba(0,0,0,0.85);
+            padding: 16px 20px;
+            border-radius: 12px;
+            color: white;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        #video-controls {
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 16px;
+            align-items: center;
+            font-size: 13px;
+            z-index: 200;
+            pointer-events: auto;
+            position: relative;
+        }
+
+        #controls {
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 24px;
+            align-items: center;
+            font-size: 13px;
+        }
+
+        #mode-panel {
+            top: 20px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        #info {
+            top: 20px;
+            left: 20px;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        #file-panel {
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            padding: 40px 60px;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .control-group label {
+            font-size: 11px;
+            color: rgba(255,255,255,0.6);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .control-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        input[type="range"] {
+            width: 100px;
+            cursor: pointer;
+            accent-color: #4a9eff;
+        }
+
+        #progress {
+            width: 300px;
+        }
+
+        .value {
+            min-width: 45px;
+            text-align: right;
+            font-family: monospace;
+            font-size: 13px;
+        }
+
+        .btn {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: white;
+            padding: 8px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+            width: 100%;
+            text-align: left;
+        }
+        .btn:hover { background: rgba(255,255,255,0.2); }
+        .btn.active {
+            background: rgba(74, 158, 255, 0.3);
+            border-color: #4a9eff;
+        }
+
+        .btn-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+
+        #file-input {
+            display: none;
+        }
+
+        .drop-zone {
+            border: 2px dashed rgba(255,255,255,0.3);
+            border-radius: 16px;
+            padding: 40px;
+            margin: 20px 0;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .drop-zone:hover {
+            border-color: #4a9eff;
+            background: rgba(74, 158, 255, 0.1);
+        }
+        .drop-zone.dragover {
+            border-color: #4a9eff;
+            background: rgba(74, 158, 255, 0.2);
+        }
+
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 16px;
+            display: none;
+        }
+
+        #toast {
+            position: fixed;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.9);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 200;
+        }
+        #toast.active { opacity: 1; }
+
+        /* Auto-hide UI */
+        .auto-hide {
+            transition: opacity 0.4s ease;
+        }
+        body.ui-hidden .auto-hide {
+            opacity: 0;
+            pointer-events: none;
+        }
+        body.ui-hidden .auto-hide:hover {
+            opacity: 1;
+            pointer-events: auto;
+        }
+    </style>
+</head>
+<body>
+    <div id="container"></div>
+    <div id="loading">비디오 로딩중...</div>
+    <div id="toast"></div>
+
+    <div class="panel" id="file-panel">
+        <h2 style="margin-bottom: 8px;">Panorama Video Viewer</h2>
+        <p style="color: rgba(255,255,255,0.6); margin-bottom: 16px;">파노라마 비디오를 3D로 감상하세요</p>
+
+        <div class="drop-zone" id="drop-zone">
+            <p style="font-size: 48px; margin-bottom: 16px;">📁</p>
+            <p>비디오 파일을 드래그하거나 클릭하여 선택</p>
+            <p style="font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 8px;">MP4, WebM, MOV</p>
+        </div>
+
+        <input type="file" id="file-input" accept="video/*">
+    </div>
+
+    <div class="panel auto-hide" id="info" style="display: none;">
+        <div>🖱️ 드래그: 시점 이동 &nbsp;|&nbsp; 클릭: 해당 지점으로 이동 &nbsp;|&nbsp; 🔍 스크롤: 줌</div>
+        <div style="margin-top: 4px; font-size: 11px; color: rgba(255,255,255,0.5);">
+            A/W/D/S 이동 &nbsp;|&nbsp; Q/E 회전 &nbsp;|&nbsp; R/F 줌인/아웃 &nbsp;|&nbsp; ,/. 프레임이동 &nbsp;|&nbsp; P 스크린샷 &nbsp;|&nbsp; F11 풀스크린
+        </div>
+    </div>
+
+    <div class="panel auto-hide" id="mode-panel" style="display: none;">
+        <div style="font-size: 11px; color: rgba(255,255,255,0.6); margin-bottom: 4px;">투영 모드</div>
+        <button class="btn active" data-mode="cylinder">🔵 Cylinder</button>
+        <button class="btn" data-mode="sphere">🌐 Sphere</button>
+        <div style="font-size: 11px; color: rgba(255,255,255,0.6); margin: 8px 0 4px;">도구</div>
+        <button class="btn" id="screenshot-btn">📸 스크린샷 (P)</button>
+        <button class="btn" id="fullscreen-btn">⛶ 풀스크린 (F11)</button>
+    </div>
+
+    <div class="panel auto-hide" id="video-controls" style="display: none;">
+        <button class="btn btn-icon" id="play-btn">▶</button>
+
+        <div class="control-group">
+            <div class="control-row">
+                <span class="value" id="current-time">0:00</span>
+                <input type="range" id="progress" min="0" max="100" value="0">
+                <span class="value" id="duration">0:00</span>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <label>속도</label>
+            <select id="speed" style="background: #222; border: 1px solid rgba(255,255,255,0.2); color: white; padding: 4px 8px; border-radius: 4px;">
+                <option value="0.25" style="background:#222; color:white;">0.25x</option>
+                <option value="0.5" style="background:#222; color:white;">0.5x</option>
+                <option value="1" selected style="background:#222; color:white;">1x</option>
+                <option value="1.5" style="background:#222; color:white;">1.5x</option>
+                <option value="2" style="background:#222; color:white;">2x</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="panel auto-hide" id="controls" style="display: none;">
+        <div class="control-group">
+            <label>Camera FOV</label>
+            <div class="control-row">
+                <input type="range" id="fov" min="1" max="90" value="50">
+                <span class="value" id="fov-val">50°</span>
+            </div>
+        </div>
+
+        <div class="control-group">
+            <label>비디오 회전</label>
+            <div class="control-row">
+                <button class="btn" id="rotate-ccw" style="width: auto; padding: 8px 12px;" title="반시계방향 90°">↺</button>
+                <button class="btn" id="rotate-cw" style="width: auto; padding: 8px 12px;" title="시계방향 90°">↻</button>
+            </div>
+        </div>
+
+        <button class="btn" id="reset" style="width: auto; padding: 8px 16px;">⟲ Reset</button>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        let scene, camera, renderer, mesh, videoTexture, video;
+        let currentMode = 'cylinder';
+        let isUserInteracting = false;
+        let onPointerDownMouseX = 0, onPointerDownMouseY = 0;
+        let lon = 0, onPointerDownLon = 0;
+        let lat = 0, onPointerDownLat = 0;
+        let videoRotation = 0;
+
+        // Default parameters (will be updated based on video)
+        let IMG_WIDTH = 2850;
+        let IMG_HEIGHT = 1109;
+        let FOCAL_LENGTH = 1920;
+        let TOTAL_FOV_RAD = IMG_WIDTH / FOCAL_LENGTH;
+
+        // --- Smooth keyboard control system ---
+        const keysPressed = new Set();
+        const velocity = { lon: 0, lat: 0, rotation: 0, fov: 0 };
+        const ACCEL = 0.025;
+        const DAMPING = 0.90;
+        const MAX_VEL = { pan: 0.6, rotation: 0.08, fov: 0.35 };
+        const VEL_THRESHOLD = 0.001;
+
+        const container = document.getElementById('container');
+        const filePanel = document.getElementById('file-panel');
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+
+        // File handling
+        dropZone.addEventListener('click', () => fileInput.click());
+
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            const files = Array.from(e.dataTransfer.files);
+            for (const file of files) {
+                if (file.type.startsWith('video/') || /\.(mp4|webm|mov)$/i.test(file.name)) {
+                    loadVideo(file);
+                    return;
+                }
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) loadVideo(file);
+        });
+
+        function loadVideo(file) {
+            filePanel.style.display = 'none';
+            document.getElementById('loading').style.display = 'block';
+
+            video = document.createElement('video');
+            video.src = URL.createObjectURL(file);
+            video.crossOrigin = 'anonymous';
+            video.loop = true;
+            video.muted = false;
+            video.playsInline = true;
+
+            video.addEventListener('loadedmetadata', () => {
+                IMG_WIDTH = video.videoWidth;
+                IMG_HEIGHT = video.videoHeight;
+                FOCAL_LENGTH = IMG_WIDTH * 0.67;
+                TOTAL_FOV_RAD = IMG_WIDTH / FOCAL_LENGTH;
+
+                document.getElementById('loading').style.display = 'none';
+                initThree();
+                showControls();
+            });
+
+            video.addEventListener('error', () => {
+                document.getElementById('loading').textContent = '비디오 로드 실패';
+            });
+
+            video.load();
+        }
+
+        function showControls() {
+            document.getElementById('info').style.display = 'block';
+            document.getElementById('mode-panel').style.display = 'flex';
+            document.getElementById('video-controls').style.display = 'flex';
+            document.getElementById('controls').style.display = 'flex';
+        }
+
+        function formatTime(seconds) {
+            const m = Math.floor(seconds / 60);
+            const s = Math.floor(seconds % 60);
+            return `${m}:${s.toString().padStart(2, '0')}`;
+        }
+
+        function initThree() {
+            scene = new THREE.Scene();
+
+            camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 0, 0.1);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            container.appendChild(renderer.domElement);
+
+            // Create video texture
+            videoTexture = new THREE.VideoTexture(video);
+            videoTexture.minFilter = THREE.LinearFilter;
+            videoTexture.magFilter = THREE.LinearFilter;
+
+            createGeometry('cylinder');
+
+            // Event listeners
+            container.addEventListener('pointerdown', onPointerDown);
+            container.addEventListener('pointermove', onPointerMove);
+            container.addEventListener('pointerup', onPointerUp);
+            container.addEventListener('wheel', onWheel);
+            window.addEventListener('resize', onResize);
+
+            // Video controls
+            const playBtn = document.getElementById('play-btn');
+            const progress = document.getElementById('progress');
+            const speedSelect = document.getElementById('speed');
+
+            playBtn.addEventListener('click', () => {
+                if (video.paused) {
+                    video.play();
+                    playBtn.textContent = '⏸';
+                } else {
+                    video.pause();
+                    playBtn.textContent = '▶';
+                }
+            });
+
+            video.addEventListener('timeupdate', () => {
+                const pct = (video.currentTime / video.duration) * 100;
+                progress.value = pct;
+                document.getElementById('current-time').textContent = formatTime(video.currentTime);
+            });
+
+            video.addEventListener('loadedmetadata', () => {
+                document.getElementById('duration').textContent = formatTime(video.duration);
+            });
+
+            progress.addEventListener('input', (e) => {
+                const time = (e.target.value / 100) * video.duration;
+                video.currentTime = time;
+            });
+            progress.addEventListener('mousedown', (e) => {
+                e.stopPropagation();
+                const rect = progress.getBoundingClientRect();
+                const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                progress.value = ratio * 100;
+                video.currentTime = ratio * video.duration;
+            });
+            progress.addEventListener('click', (e) => { e.stopPropagation(); });
+            progress.addEventListener('pointerdown', (e) => { e.stopPropagation(); });
+
+            speedSelect.addEventListener('change', (e) => {
+                video.playbackRate = parseFloat(e.target.value);
+            });
+
+            // View controls
+            document.getElementById('fov').addEventListener('input', (e) => {
+                camera.fov = parseFloat(e.target.value);
+                camera.updateProjectionMatrix();
+                document.getElementById('fov-val').textContent = e.target.value + '°';
+            });
+
+            document.getElementById('reset').addEventListener('click', resetView);
+
+            // 비디오 회전 버튼 (마우스 누르고 있는 동안 회전)
+            const rotateCcwBtn = document.getElementById('rotate-ccw');
+            const rotateCwBtn = document.getElementById('rotate-cw');
+
+            const holdKey = (key) => ({
+                md() { keysPressed.add(key); },
+                mu() { keysPressed.delete(key); }
+            });
+            const ccwH = holdKey('_ccw'), cwH = holdKey('_cw');
+            rotateCcwBtn.addEventListener('mousedown', ccwH.md);
+            rotateCcwBtn.addEventListener('mouseup', ccwH.mu);
+            rotateCcwBtn.addEventListener('mouseleave', ccwH.mu);
+            rotateCcwBtn.addEventListener('touchstart', (e) => { e.preventDefault(); ccwH.md(); });
+            rotateCcwBtn.addEventListener('touchend', ccwH.mu);
+            rotateCwBtn.addEventListener('mousedown', cwH.md);
+            rotateCwBtn.addEventListener('mouseup', cwH.mu);
+            rotateCwBtn.addEventListener('mouseleave', cwH.mu);
+            rotateCwBtn.addEventListener('touchstart', (e) => { e.preventDefault(); cwH.md(); });
+            rotateCwBtn.addEventListener('touchend', cwH.mu);
+
+            // 키보드 입력
+            const codeMap = {
+                'KeyA': 'arrowleft', 'KeyW': 'arrowup',
+                'KeyD': 'arrowright', 'KeyS': 'arrowdown',
+                'KeyQ': 'q', 'KeyE': 'e',
+                'KeyR': 'zoomin', 'KeyF': 'zoomout',
+            };
+            window.addEventListener('keydown', (e) => {
+                // Space: 재생/정지
+                if (e.code === 'Space') {
+                    e.preventDefault();
+                    if (video.paused) {
+                        video.play();
+                        document.getElementById('play-btn').textContent = '⏸';
+                    } else {
+                        video.pause();
+                        document.getElementById('play-btn').textContent = '▶';
+                    }
+                    return;
+                }
+                // 화살표 좌/우: 5초 이동
+                if (e.code === 'ArrowLeft') {
+                    e.preventDefault();
+                    video.currentTime = Math.max(0, video.currentTime - 5);
+                    return;
+                }
+                if (e.code === 'ArrowRight') {
+                    e.preventDefault();
+                    video.currentTime = Math.min(video.duration, video.currentTime + 5);
+                    return;
+                }
+                // P: 스크린샷
+                if (e.code === 'KeyP') {
+                    e.preventDefault();
+                    takeScreenshot();
+                    return;
+                }
+                // F11: 풀스크린
+                if (e.code === 'F11') {
+                    e.preventDefault();
+                    toggleFullscreen();
+                    return;
+                }
+                // , (Comma): 이전 프레임
+                if (e.code === 'Comma') {
+                    e.preventDefault();
+                    stepFrame(-1);
+                    return;
+                }
+                // . (Period): 다음 프레임
+                if (e.code === 'Period') {
+                    e.preventDefault();
+                    stepFrame(1);
+                    return;
+                }
+
+                const mapped = codeMap[e.code];
+                if (mapped) {
+                    keysPressed.add(mapped);
+                    e.preventDefault();
+                }
+            });
+            window.addEventListener('keyup', (e) => {
+                const mapped = codeMap[e.code];
+                if (mapped) keysPressed.delete(mapped);
+            });
+
+            // 재생바 클릭/드래그
+            const progressBar = document.getElementById('progress');
+            const seekTo = (e) => {
+                const rect = progressBar.getBoundingClientRect();
+                const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                video.currentTime = ratio * video.duration;
+            };
+            progressBar.addEventListener('click', seekTo);
+            progressBar.addEventListener('mousedown', (e) => {
+                seekTo(e);
+                const onMove = (e) => seekTo(e);
+                const onUp = () => {
+                    window.removeEventListener('mousemove', onMove);
+                    window.removeEventListener('mouseup', onUp);
+                };
+                window.addEventListener('mousemove', onMove);
+                window.addEventListener('mouseup', onUp);
+            });
+
+            // Mode buttons
+            document.querySelectorAll('[data-mode]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('[data-mode]').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    currentMode = btn.dataset.mode;
+                    createGeometry(currentMode);
+                });
+            });
+
+            // 스크린샷 / 풀스크린 버튼
+            document.getElementById('screenshot-btn').addEventListener('click', takeScreenshot);
+            document.getElementById('fullscreen-btn').addEventListener('click', toggleFullscreen);
+
+            // Start playback
+            video.play().then(() => {
+                document.getElementById('play-btn').textContent = '⏸';
+            }).catch(() => {});
+
+            animate();
+        }
+
+        function resetView() {
+            lon = 0; lat = 0;
+            videoRotation = 0;
+            camera.fov = 50;
+            camera.updateProjectionMatrix();
+            document.getElementById('fov').value = 50;
+            document.getElementById('fov-val').textContent = '50°';
+            createGeometry(currentMode);
+        }
+
+        function createGeometry(mode) {
+            if (!videoTexture) return;
+
+            if (mesh) {
+                scene.remove(mesh);
+                mesh.geometry.dispose();
+                mesh.material.dispose();
+            }
+
+            const curve = 1.0;
+            const distance = 1.0;
+            const radius = 50 * distance;
+
+            let geometry;
+
+            if (mode === 'cylinder') {
+                const arcAngle = TOTAL_FOV_RAD * curve;
+                const cylinderHeight = radius * arcAngle / (IMG_WIDTH / IMG_HEIGHT);
+
+                geometry = new THREE.CylinderGeometry(
+                    radius, radius, cylinderHeight,
+                    64, 1, true,
+                    -arcAngle / 2, arcAngle
+                );
+                geometry.scale(-1, 1, 1);
+
+            } else if (mode === 'sphere') {
+                const phiLength = TOTAL_FOV_RAD * curve;
+                const thetaLength = phiLength / (IMG_WIDTH / IMG_HEIGHT);
+
+                geometry = new THREE.SphereGeometry(
+                    radius,
+                    64, 32,
+                    Math.PI / 2 - phiLength / 2, phiLength,
+                    Math.PI / 2 - thetaLength / 2, thetaLength
+                );
+                geometry.scale(-1, 1, 1);
+            }
+
+            const material = new THREE.MeshBasicMaterial({
+                map: videoTexture,
+                side: THREE.DoubleSide
+            });
+
+            mesh = new THREE.Mesh(geometry, material);
+
+            if (mode === 'cylinder' || mode === 'sphere') {
+                mesh.rotation.y = Math.PI / 2;
+            }
+            mesh.rotation.z = THREE.MathUtils.degToRad(videoRotation);
+
+            scene.add(mesh);
+        }
+
+        let prevPointerX = 0, prevPointerY = 0;
+        let smoothTarget = null;
+        const SMOOTH_LERP = 0.08;
+
+        function isClickOnUI(event) {
+            const el = event.target;
+            if (el.closest('#video-controls') || el.closest('#controls') || el.closest('#mode-panel') ||
+                el.closest('#info') || el.closest('#file-panel') ||
+                el.tagName === 'INPUT' || el.tagName === 'SELECT' || el.tagName === 'BUTTON') {
+                return true;
+            }
+            return false;
+        }
+
+        function onPointerDown(event) {
+            if (isClickOnUI(event)) return;
+
+            isUserInteracting = true;
+            onPointerDownMouseX = event.clientX;
+            onPointerDownMouseY = event.clientY;
+            prevPointerX = event.clientX;
+            prevPointerY = event.clientY;
+            onPointerDownLon = lon;
+            onPointerDownLat = lat;
+            velocity.lon = 0;
+            velocity.lat = 0;
+        }
+
+        function onPointerMove(event) {
+            if (isUserInteracting) {
+                const dx = event.clientX - prevPointerX;
+                const dy = event.clientY - prevPointerY;
+                const fovScale = camera.fov / 50;
+                lon -= dx * 0.08 * fovScale;
+                lat += dy * 0.08 * fovScale;
+                velocity.lon = -dx * 0.04 * fovScale;
+                velocity.lat = dy * 0.04 * fovScale;
+                prevPointerX = event.clientX;
+                prevPointerY = event.clientY;
+            }
+        }
+
+        function onPointerUp(event) {
+            isUserInteracting = false;
+            if (isClickOnUI(event)) return;
+
+            const dx = event.clientX - onPointerDownMouseX;
+            const dy = event.clientY - onPointerDownMouseY;
+            if (Math.sqrt(dx * dx + dy * dy) < 5) {
+                velocity.lon = 0;
+                velocity.lat = 0;
+                const targetLonLat = screenToLonLat(event.clientX, event.clientY);
+                if (targetLonLat) {
+                    smoothTarget = targetLonLat;
+                }
+            }
+        }
+
+        function screenToLonLat(screenX, screenY) {
+            const ndcX = (screenX / window.innerWidth) * 2 - 1;
+            const ndcY = -(screenY / window.innerHeight) * 2 + 1;
+
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), camera);
+
+            if (!mesh) return null;
+            const intersects = raycaster.intersectObject(mesh);
+            if (intersects.length === 0) return null;
+
+            const point = intersects[0].point;
+            const r = Math.sqrt(point.x * point.x + point.y * point.y + point.z * point.z);
+            const targetLat = 90 - THREE.MathUtils.radToDeg(Math.acos(point.y / r));
+            const targetLon = THREE.MathUtils.radToDeg(Math.atan2(point.z, point.x));
+            return { lon: targetLon, lat: targetLat };
+        }
+
+        function onWheel(event) {
+            const zoomSens = (camera.fov / 50) * 0.008;
+            velocity.fov += event.deltaY * zoomSens;
+        }
+
+        function onResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+        function snap(v) { return Math.abs(v) < VEL_THRESHOLD ? 0 : v; }
+
+        function updateSmoothControls() {
+            const fovRatio = camera.fov / 50;
+            const fovScale = Math.pow(fovRatio, 1.5);
+
+            // Pan (AWDS)
+            if (keysPressed.has('arrowleft'))  velocity.lon -= ACCEL * fovScale;
+            if (keysPressed.has('arrowright')) velocity.lon += ACCEL * fovScale;
+            if (keysPressed.has('arrowup'))    velocity.lat += ACCEL * fovScale;
+            if (keysPressed.has('arrowdown'))  velocity.lat -= ACCEL * fovScale;
+
+            // Rotation (Q/E + buttons)
+            const rotScale = fovScale * 0.4;
+            if (keysPressed.has('q') || keysPressed.has('_ccw')) velocity.rotation -= ACCEL * rotScale;
+            if (keysPressed.has('e') || keysPressed.has('_cw'))  velocity.rotation += ACCEL * rotScale;
+
+            // Zoom (R/F)
+            const zoomScale = fovRatio * 0.6;
+            if (keysPressed.has('zoomin'))  velocity.fov -= ACCEL * zoomScale;
+            if (keysPressed.has('zoomout')) velocity.fov += ACCEL * zoomScale;
+
+            // Clamp
+            const maxPan = MAX_VEL.pan * fovScale;
+            velocity.lon      = clamp(velocity.lon,      -maxPan, maxPan);
+            velocity.lat      = clamp(velocity.lat,      -maxPan, maxPan);
+            velocity.rotation = clamp(velocity.rotation, -MAX_VEL.rotation * fovScale, MAX_VEL.rotation * fovScale);
+            velocity.fov      = clamp(velocity.fov,      -MAX_VEL.fov, MAX_VEL.fov);
+
+            // Click-to-move animation
+            if (smoothTarget) {
+                if (velocity.lon !== 0 || velocity.lat !== 0) {
+                    smoothTarget = null;
+                } else {
+                    const dLon = smoothTarget.lon - lon;
+                    const dLat = smoothTarget.lat - lat;
+                    if (Math.abs(dLon) < 0.05 && Math.abs(dLat) < 0.05) {
+                        lon = smoothTarget.lon;
+                        lat = smoothTarget.lat;
+                        smoothTarget = null;
+                    } else {
+                        lon += dLon * SMOOTH_LERP;
+                        lat += dLat * SMOOTH_LERP;
+                    }
+                }
+            }
+
+            // Apply
+            if (!smoothTarget) {
+                lon += velocity.lon;
+                lat += velocity.lat;
+            }
+
+            if (velocity.rotation !== 0 && mesh) {
+                videoRotation += velocity.rotation;
+                mesh.rotation.z = THREE.MathUtils.degToRad(videoRotation);
+            }
+
+            if (velocity.fov !== 0) {
+                camera.fov = clamp(camera.fov + velocity.fov, 0.5, 90);
+                camera.updateProjectionMatrix();
+                document.getElementById('fov').value = Math.round(camera.fov);
+                document.getElementById('fov-val').textContent = Math.round(camera.fov) + '\u00B0';
+            }
+
+            // Damping
+            velocity.lon      = snap(velocity.lon      * DAMPING);
+            velocity.lat      = snap(velocity.lat      * DAMPING);
+            velocity.rotation = snap(velocity.rotation * DAMPING);
+            velocity.fov      = snap(velocity.fov      * DAMPING);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            updateSmoothControls();
+
+            const phi = THREE.MathUtils.degToRad(90 - lat);
+            const theta = THREE.MathUtils.degToRad(lon);
+
+            const x = 100 * Math.sin(phi) * Math.cos(theta);
+            const y = 100 * Math.cos(phi);
+            const z = 100 * Math.sin(phi) * Math.sin(theta);
+            camera.lookAt(x, y, z);
+            renderer.render(scene, camera);
+        }
+
+        // === 추가 기능 ===
+
+        // 스크린샷
+        function takeScreenshot() {
+            if (!renderer) return;
+            renderer.render(scene, camera);
+            const dataURL = renderer.domElement.toDataURL('image/png');
+            const link = document.createElement('a');
+            link.download = `panorama_${new Date().toISOString().slice(0,19).replace(/[:-]/g,'')}.png`;
+            link.href = dataURL;
+            link.click();
+            showToast('📸 스크린샷 저장됨');
+        }
+
+        // 풀스크린
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(() => {});
+                showToast('⛶ 풀스크린');
+            } else {
+                document.exitFullscreen();
+                showToast('⛶ 풀스크린 해제');
+            }
+        }
+
+        // 프레임 단위 이동
+        function stepFrame(direction) {
+            if (!video) return;
+            if (!video.paused) {
+                video.pause();
+                document.getElementById('play-btn').textContent = '▶';
+            }
+            const fps = 30;
+            video.currentTime = Math.max(0, Math.min(video.duration, video.currentTime + direction / fps));
+            showToast(direction > 0 ? '▶| 다음 프레임' : '|◀ 이전 프레임');
+        }
+
+        // 토스트
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.classList.add('active');
+            clearTimeout(t._timer);
+            t._timer = setTimeout(() => t.classList.remove('active'), 1500);
+        }
+    </script>
+</body>
+</html>
