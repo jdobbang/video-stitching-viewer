@@ -478,6 +478,14 @@
         const VIEW_PAD_H_RAD = 0.0;   // 좌우 허용 패딩 (음수면 호 안쪽으로 당김)
         const VIEW_PAD_V_RAD = -0.035; // 상하 허용 패딩 — 스티칭된 상/하단 검은 여백 숨김 (~-2°)
 
+        // Brown-Conrady radial distortion 보정 계수 (렌즈 배럴 왜곡 역보정)
+        // k1<0: pincushion, 가장자리에서 안쪽으로 당김 → cylindrical 곡률 완화
+        // fovRatio(=fov/90)로 블렌딩 → 줌인 시 자동 약화
+        // 기준 아크 각도 85° (FOCAL_LENGTH=w*0.67)에서 튜닝된 값 → 아크 비율로 자동 스케일
+        const DISTORTION_K1_BASE = -0.18;
+        const DISTORTION_K2_BASE = 0.04;
+        const DISTORTION_ARC_BASE_RAD = 1.0 / 0.67; // ≈ 1.492 rad (85°)
+
         // --- Smooth keyboard control system ---
         const keysPressed = new Set();
         const velocity = { lon: 0, lat: 0, rotation: 0, fov: 0 };
@@ -653,6 +661,7 @@
                 const val = clamp(parseFloat(e.target.value), 0.5, getMaxFovDeg());
                 camera.fov = val;
                 camera.updateProjectionMatrix();
+                updateDistortionFovRatio();
                 e.target.value = val;
                 document.getElementById('fov-val').textContent = Math.round(val) + '°';
             });
@@ -802,13 +811,50 @@
 
             const geometry = new THREE.CylinderGeometry(
                 radius, radius, cylinderHeight,
-                64, 1, true,
+                64, 32, true,  // 수직 세그먼트 1→32: radial 보정 UV 정밀도 확보
                 -arcAngle / 2, arcAngle
             );
             geometry.scale(-1, 1, 1);
 
-            const material = new THREE.MeshBasicMaterial({
-                map: videoTexture,
+            // ShaderMaterial: Brown-Conrady radial distortion 역보정.
+            // k1,k2는 아크 각도 비율로 자동 스케일. fovRatio로 줌 연동 (줌인 시 보정 약화).
+            const arcRatio = arcAngle / DISTORTION_ARC_BASE_RAD;
+            const material = new THREE.ShaderMaterial({
+                uniforms: {
+                    map: { value: videoTexture },
+                    k1: { value: DISTORTION_K1_BASE * arcRatio },
+                    k2: { value: DISTORTION_K2_BASE * arcRatio },
+                    fovRatio: { value: camera ? camera.fov / 90.0 : 0.55 }
+                },
+                vertexShader: `
+                    varying vec2 vUv;
+                    void main() {
+                        vUv = uv;
+                        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                    }
+                `,
+                fragmentShader: `
+                    uniform sampler2D map;
+                    uniform float k1;
+                    uniform float k2;
+                    uniform float fovRatio;
+                    varying vec2 vUv;
+                    void main() {
+                        vec2 uv = vUv * 2.0 - 1.0;
+                        float r2 = dot(uv, uv);
+                        float r4 = r2 * r2;
+                        float correction = 1.0 + k1 * r2 + k2 * r4;
+                        correction = mix(1.0, correction, clamp(fovRatio, 0.0, 1.0));
+                        vec2 correctedUv = uv * correction;
+                        correctedUv = correctedUv * 0.5 + 0.5;
+                        if (correctedUv.x < 0.0 || correctedUv.x > 1.0 ||
+                            correctedUv.y < 0.0 || correctedUv.y > 1.0) {
+                            gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+                            return;
+                        }
+                        gl_FragColor = texture2D(map, correctedUv);
+                    }
+                `,
                 side: THREE.DoubleSide
             });
 
@@ -832,6 +878,12 @@
                 if (fovSlider) fovSlider.value = Math.round(maxFov);
                 const fovValEl = document.getElementById('fov-val');
                 if (fovValEl) fovValEl.textContent = Math.round(maxFov) + '\u00B0';
+            }
+        }
+
+        function updateDistortionFovRatio() {
+            if (mesh && mesh.material && mesh.material.uniforms && mesh.material.uniforms.fovRatio) {
+                mesh.material.uniforms.fovRatio.value = camera.fov / 90.0;
             }
         }
 
@@ -1037,6 +1089,7 @@
         function animate() {
             requestAnimationFrame(animate);
             updateSmoothControls();
+            updateDistortionFovRatio();
 
             const phi = THREE.MathUtils.degToRad(90 - lat);
             const theta = THREE.MathUtils.degToRad(lon);
