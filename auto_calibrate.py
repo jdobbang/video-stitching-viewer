@@ -198,6 +198,11 @@ def spatial_subsample(pts_left, pts_right, img_shape, grid_size=8):
 def visualize(left, right, point_pairs, output_path):
     """매칭 결과 시각화"""
     h, w = left.shape[:2]
+    # 방어적: 해상도가 다르면 우측을 좌측에 맞춰 리사이즈 (aspect 유지)
+    if right.shape[:2] != (h, w):
+        scale = h / right.shape[0]
+        new_w = int(right.shape[1] * scale)
+        right = cv2.resize(right, (new_w, h))
     combined = np.hstack([left, right])
 
     colors = [

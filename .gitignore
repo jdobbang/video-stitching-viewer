@@ -1,6 +1,7 @@
 # 영상 파일
 *.MOV
 *.mov
+*.mp4
 
 # Python
 __pycache__/
@@ -14,3 +15,11 @@ output/
 # 생성된 시각화 이미지
 *.jpg
 !asset/*.jpg
+
+# ML 모델 바이너리
+*.onnx
+*.pt
+
+# 로컬 상태
+.claude/
+VIEW TEST/memo/

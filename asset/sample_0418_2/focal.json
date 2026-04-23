@@ -1,0 +1,10 @@
+{
+  "left_focal_mm": 26,
+  "right_focal_mm": 26,
+  "_note": {
+    "reference": "left (default, both confirmed)",
+    "left": "iPhone 15, 1x main, 35mm equiv 26mm (confirmed from metadata)",
+    "right": "iPhone 12 Pro Max, 1x main, 35mm equiv 26mm (confirmed from metadata) — matched to left reference",
+    "source_files": ["아이폰_좌_2.MOV", "아이폰_우_2.mov"]
+  }
+}

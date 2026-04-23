@@ -157,18 +157,31 @@ class PanoramaStitcher:
     매 프레임 스티칭 시 warpPerspective + 행렬 연산만 수행한다.
     """
 
-    def __init__(self, calibration_path, method='cylindrical', focal_weight='auto'):
+    def __init__(self, calibration_path, method='cylindrical', focal_weight='auto',
+                 lab_match=True, pixel_match=True, multi_band=True, mbb_num_bands=5):
         """
         Args:
             calibration_path: calibration.json 경로
             method: 'cylindrical' (원통 투영) 또는 'planar' (평면)
             focal_weight: focal_length = width * focal_weight
                           'auto' = 좌/우 크기 균형 기준 자동 결정
+            pixel_match: True면 픽셀 이퀄라이징(BGR 게인 + Lab a/b) 수행.
+                         False면 전부 스킵하고 raw warped 픽셀로 블렌딩 (기본: True).
+            lab_match: pixel_match=True일 때만 의미 있음. BGR 게인 보정 후 Lab a/b
+                       채널 평균을 추가로 매칭 (기본: True).
+            multi_band: True면 Laplacian pyramid 기반 Multi-band blending 사용
+                        (저주파는 넓게, 고주파는 좁게 블렌딩하여 시임 최소화).
+                        False면 기존 선형 알파 블렌딩 (기본: True).
+            mbb_num_bands: Multi-band blending pyramid 레벨 수 (기본: 5).
         """
         with open(calibration_path, 'r') as f:
             self.calib = json.load(f)
 
         self.method = method
+        self.pixel_match = pixel_match
+        self.lab_match = lab_match
+        self.multi_band = multi_band
+        self.mbb_num_bands = mbb_num_bands
         self.image_size = tuple(self.calib['image_size'])
         self.w, self.h = self.image_size
 
@@ -192,6 +205,10 @@ class PanoramaStitcher:
             self._cyl_maps = build_cylindrical_maps(self.h, self.w, self.focal_length)
 
         # ── 호모그래피 / 캔버스 / 블렌딩 사전 계산 ──
+        # (_precompute_blend_weight 내부에서 multi_band=True면 _precompute_mbb_pyramid 호출)
+        self._mbb_alpha_pyr = None
+        self._mbb_valid_mask_3c = None
+        self._mbb_num_bands = 0
         self._compute_homography()
         self._compute_canvas_params()
         self._build_combined_maps()
@@ -199,6 +216,8 @@ class PanoramaStitcher:
 
         # ── 노출 보정 LUT (첫 프레임에서 계산) ──
         self._exposure_luts = None
+        # ── Lab a/b 채널 시프트 (첫 프레임에서 계산, lab_match=True일 때만) ──
+        self._ab_shifts = None
 
         # ── GPU remap 맵 업로드 ──
         self._gpu_maps = None
@@ -426,18 +445,94 @@ class PanoramaStitcher:
         self._blend_alpha_3c = np.stack([self._blend_alpha] * 3, axis=2)
         self._has_overlap = np.any(overlap_mask)
 
-        # 크롭 영역 사전 계산
-        composite = np.zeros((self.canvas_h, self.canvas_w, 3), dtype=np.uint8)
-        composite[self._mask_left_only_3c] = canvas_left[self._mask_left_only_3c]
-        composite[self._mask_right_only_3c] = warped_right[self._mask_right_only_3c]
-        if np.any(overlap_mask):
-            alpha = self._blend_alpha_3c[self._overlap_mask_3c].astype(np.uint16)
-            l_vals = canvas_left[self._overlap_mask_3c].astype(np.uint16)
-            r_vals = warped_right[self._overlap_mask_3c].astype(np.uint16)
-            composite[self._overlap_mask_3c] = ((l_vals * (256 - alpha) + r_vals * alpha) >> 8).astype(np.uint8)
-        gray = cv2.cvtColor(composite, cv2.COLOR_BGR2GRAY)
-        coords = cv2.findNonZero(gray)
+        # 유효 영역 bool 마스크 (crop_rect + MBB에서 사용, 1회성이라 로컬)
+        any_valid = (mask_left + mask_right) > 0
+
+        # 크롭 영역: 블렌딩 없이 유효 영역 bbox만 계산 (동일 결과, 훨씬 단순)
+        coords = cv2.findNonZero(any_valid.astype(np.uint8))
         self._crop_rect = cv2.boundingRect(coords) if coords is not None else None
+
+        # Multi-band blending 피라미드 (옵션)
+        if self.multi_band and self._has_overlap:
+            self._precompute_mbb_pyramid(blend_weight, mask_right_only, any_valid)
+
+    # ── Multi-band blending 사전 계산 ───────────────────────────────
+    def _precompute_mbb_pyramid(self, blend_weight, mask_right_only, any_valid):
+        """Multi-band blending 용 알파 마스크 Gaussian pyramid 사전 계산.
+
+        알파 마스크 정의 (캔버스 전체):
+            - left-only / 무효 영역: 0 (좌측 100% 또는 크롭 제외)
+            - overlap 영역: 기존 선형 그라디언트 0→1
+            - right-only 영역: 1 (우측 100%)
+        """
+        # 전체 캔버스 알파 (float32, 0~1)
+        alpha = blend_weight.copy()
+        alpha[mask_right_only] = 1.0
+
+        # 실제 가능한 최대 레벨 (해상도 하한 고려)
+        min_dim = min(self.canvas_h, self.canvas_w)
+        max_levels = max(1, int(np.log2(min_dim)) - 3)
+        n = min(self.mbb_num_bands, max_levels)
+        self._mbb_num_bands = n
+
+        # Gaussian pyramid (float32, 3채널 확장 — per-frame 연산 최소화)
+        pyr = [alpha]
+        for _ in range(n):
+            pyr.append(cv2.pyrDown(pyr[-1]))
+        self._mbb_alpha_pyr = [p[..., np.newaxis].astype(np.float32) for p in pyr]
+
+        # "어느 쪽이든 유효" 3채널 mask (최종 출력 clipping 용)
+        self._mbb_valid_mask_3c = np.stack([any_valid] * 3, axis=2)
+
+        print(f"  Multi-band blending: {n} bands, canvas={self.canvas_w}x{self.canvas_h}")
+
+    def _multi_band_blend(self, left, right):
+        """두 워프 이미지를 Laplacian pyramid 기반으로 블렌딩.
+
+        Args:
+            left, right: BGR uint8 (canvas_h, canvas_w, 3)
+        Returns:
+            블렌딩된 BGR uint8 (canvas_h, canvas_w, 3)
+        """
+        n = self._mbb_num_bands
+        L = left.astype(np.float32)
+        R = right.astype(np.float32)
+
+        # Gaussian pyramids
+        gL = [L]
+        gR = [R]
+        for _ in range(n):
+            gL.append(cv2.pyrDown(gL[-1]))
+            gR.append(cv2.pyrDown(gR[-1]))
+
+        # Laplacian pyramids (top level = coarsest Gaussian)
+        lapL, lapR = [], []
+        for i in range(n):
+            dst_size = (gL[i].shape[1], gL[i].shape[0])
+            upL = cv2.pyrUp(gL[i + 1], dstsize=dst_size)
+            upR = cv2.pyrUp(gR[i + 1], dstsize=dst_size)
+            lapL.append(gL[i] - upL)
+            lapR.append(gR[i] - upR)
+        lapL.append(gL[n])
+        lapR.append(gR[n])
+
+        # 레벨별 블렌딩
+        blended = []
+        for i in range(n + 1):
+            a = self._mbb_alpha_pyr[i]
+            # 크기 mismatch 방어 (pyrDown의 반올림 차이로 1px 어긋날 수 있음)
+            if a.shape[:2] != lapL[i].shape[:2]:
+                a = cv2.resize(a[:, :, 0], (lapL[i].shape[1], lapL[i].shape[0]))[..., np.newaxis]
+            blended.append(lapL[i] * (1.0 - a) + lapR[i] * a)
+
+        # 재구성 (coarsest에서 시작, pyrUp + Laplacian 더하기)
+        out = blended[n]
+        for i in range(n - 1, -1, -1):
+            dst_size = (blended[i].shape[1], blended[i].shape[0])
+            out = cv2.pyrUp(out, dstsize=dst_size)
+            out = out + blended[i]
+
+        return np.clip(out, 0, 255).astype(np.uint8)
 
     # ── 노출 보정 ─────────────────────────────────────────────────────
     def _compute_exposure_luts(self, canvas_left, warped_right):
@@ -470,11 +565,42 @@ class PanoramaStitcher:
               f"L=[{gain_l[2]:.3f}, {gain_l[1]:.3f}, {gain_l[0]:.3f}] "
               f"R=[{gain_r[2]:.3f}, {gain_r[1]:.3f}, {gain_r[0]:.3f}]")
 
+        # ── Lab a/b 채널 매칭 (옵션) ─────────────────────────────────
+        # BGR 게인 보정 후 잔여 색감(white balance) 차이를 Lab a/b 평균
+        # 시프트로 양쪽이 중간값에 수렴하도록 보정.
+        if self.lab_match:
+            lut_l, lut_r = self._exposure_luts
+            l_corr = self._apply_lut(canvas_left, lut_l)
+            r_corr = self._apply_lut(warped_right, lut_r)
+
+            l_lab = cv2.cvtColor(l_corr, cv2.COLOR_BGR2LAB)
+            r_lab = cv2.cvtColor(r_corr, cv2.COLOR_BGR2LAB)
+
+            l_ab = l_lab[overlap_1c][:, 1:3].astype(np.float64).mean(axis=0)
+            r_ab = r_lab[overlap_1c][:, 1:3].astype(np.float64).mean(axis=0)
+            target_ab = (l_ab + r_ab) / 2.0
+
+            shift_l = (target_ab - l_ab).astype(np.float32)
+            shift_r = (target_ab - r_ab).astype(np.float32)
+            self._ab_shifts = (shift_l, shift_r)
+
+            print(f"  Lab a/b matching: "
+                  f"L=[Δa={shift_l[0]:+.2f}, Δb={shift_l[1]:+.2f}] "
+                  f"R=[Δa={shift_r[0]:+.2f}, Δb={shift_r[1]:+.2f}]")
+
     @staticmethod
     def _apply_lut(img, luts):
         """3채널 LUT를 적용한다 (cv2.LUT 기반, 매우 빠름)."""
         b, g, r = cv2.split(img)
         return cv2.merge([cv2.LUT(b, luts[0]), cv2.LUT(g, luts[1]), cv2.LUT(r, luts[2])])
+
+    @staticmethod
+    def _apply_ab_shift(img, shift):
+        """Lab a/b 채널에 상수 시프트를 적용한다 (L 채널은 보존)."""
+        lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB).astype(np.int16)
+        lab[:, :, 1] = np.clip(lab[:, :, 1] + int(round(float(shift[0]))), 0, 255)
+        lab[:, :, 2] = np.clip(lab[:, :, 2] + int(round(float(shift[1]))), 0, 255)
+        return cv2.cvtColor(lab.astype(np.uint8), cv2.COLOR_LAB2BGR)
 
     # ── 스티칭 ───────────────────────────────────────────────────────
     def stitch(self, left_img, right_img, crop=True):
@@ -491,53 +617,73 @@ class PanoramaStitcher:
         canvas_size = (self.canvas_w, self.canvas_h)
 
         # 1+2) 합성 remap 맵으로 cylindrical warp + 캔버스 배치를 1회로 처리
+        # NOTE: borderMode=BORDER_REPLICATE 사용 — 매핑이 원본 바깥을 가리킬 때
+        # 검은 픽셀(0,0,0) 대신 가장자리 픽셀을 복제. 알파 블렌딩 시 검은 띠가
+        # 노출되는 것을 방지 (특히 좌/우 해상도가 달라 캘리브가 살짝 어긋날 때).
+        # 유효 영역 마스크는 _precompute_blend_weight에서 BORDER_CONSTANT로 따로 계산됨.
         if self._gpu_maps:
             # GPU 경로: 프레임 업로드 → GPU remap → 다운로드
             gpu_left = cv2.cuda_GpuMat(left_img)
             gpu_right = cv2.cuda_GpuMat(right_img)
             gpu_canvas_left = cv2.cuda.remap(
                 gpu_left, self._gpu_left_map_x, self._gpu_left_map_y,
-                cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
+                cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
             gpu_warped_right = cv2.cuda.remap(
                 gpu_right, self._gpu_right_map_x, self._gpu_right_map_y,
-                cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
+                cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
             canvas_left = gpu_canvas_left.download()
             warped_right = gpu_warped_right.download()
         elif self._left_combined_maps is not None:
             canvas_left = cv2.remap(
                 left_img, self._left_combined_maps[0], self._left_combined_maps[1],
-                cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
+                cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
             warped_right = cv2.remap(
                 right_img, self._right_combined_maps[0], self._right_combined_maps[1],
-                cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
+                cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
         else:
             # planar 모드: 기존 방식
-            canvas_left = cv2.warpPerspective(left_img, self.T, canvas_size)
-            warped_right = cv2.warpPerspective(right_img, self.H_translated, canvas_size)
+            canvas_left = cv2.warpPerspective(
+                left_img, self.T, canvas_size, borderMode=cv2.BORDER_REPLICATE)
+            warped_right = cv2.warpPerspective(
+                right_img, self.H_translated, canvas_size, borderMode=cv2.BORDER_REPLICATE)
 
-        # 2.5) 노출 보정 (첫 프레임에서 LUT 계산 후 캐싱)
-        if self._has_overlap:
+        # 2.5) 픽셀 이퀄라이징 (노출 보정 LUT + Lab a/b 시프트, 첫 프레임에서 계산 후 캐싱)
+        if self.pixel_match and self._has_overlap:
             if self._exposure_luts is None:
                 self._compute_exposure_luts(canvas_left, warped_right)
             lut_l, lut_r = self._exposure_luts
             canvas_left = self._apply_lut(canvas_left, lut_l)
             warped_right = self._apply_lut(warped_right, lut_r)
 
-        # 3) uint8 블렌딩 (float32 변환 없음)
-        result = np.zeros((self.canvas_h, self.canvas_w, 3), dtype=np.uint8)
+            # 2.6) Lab a/b 색감 매칭 (옵션, 첫 프레임 시프트 캐시 사용)
+            if self._ab_shifts is not None:
+                shift_l, shift_r = self._ab_shifts
+                canvas_left = self._apply_ab_shift(canvas_left, shift_l)
+                warped_right = self._apply_ab_shift(warped_right, shift_r)
 
-        # 비겹침 영역: 직접 복사
-        result[self._mask_left_only_3c] = canvas_left[self._mask_left_only_3c]
-        result[self._mask_right_only_3c] = warped_right[self._mask_right_only_3c]
+        # 3) 블렌딩
+        if self.multi_band and self._has_overlap and self._mbb_alpha_pyr is not None:
+            # Multi-band blending (Laplacian pyramid)
+            blended = self._multi_band_blend(canvas_left, warped_right)
+            # 유효 영역만 살리고 나머지는 0
+            result = np.zeros((self.canvas_h, self.canvas_w, 3), dtype=np.uint8)
+            result[self._mbb_valid_mask_3c] = blended[self._mbb_valid_mask_3c]
+        else:
+            # 기존 선형 알파 블렌딩 (uint8, float32 변환 없음)
+            result = np.zeros((self.canvas_h, self.canvas_w, 3), dtype=np.uint8)
 
-        # 겹침 영역: uint16 정수 블렌딩 (float 없이)
-        if self._has_overlap:
-            alpha = self._blend_alpha_3c[self._overlap_mask_3c].astype(np.uint16)
-            l_vals = canvas_left[self._overlap_mask_3c].astype(np.uint16)
-            r_vals = warped_right[self._overlap_mask_3c].astype(np.uint16)
-            result[self._overlap_mask_3c] = (
-                (l_vals * (256 - alpha) + r_vals * alpha) >> 8
-            ).astype(np.uint8)
+            # 비겹침 영역: 직접 복사
+            result[self._mask_left_only_3c] = canvas_left[self._mask_left_only_3c]
+            result[self._mask_right_only_3c] = warped_right[self._mask_right_only_3c]
+
+            # 겹침 영역: uint16 정수 블렌딩 (float 없이)
+            if self._has_overlap:
+                alpha = self._blend_alpha_3c[self._overlap_mask_3c].astype(np.uint16)
+                l_vals = canvas_left[self._overlap_mask_3c].astype(np.uint16)
+                r_vals = warped_right[self._overlap_mask_3c].astype(np.uint16)
+                result[self._overlap_mask_3c] = (
+                    (l_vals * (256 - alpha) + r_vals * alpha) >> 8
+                ).astype(np.uint8)
 
         # 4) 크롭
         if crop and self._crop_rect is not None:
@@ -574,7 +720,8 @@ def process_single_frame(args):
 
 def batch_stitch(left_dir, right_dir, calibration_path, output_dir,
                  method='cylindrical', num_workers=None,
-                 frame_pattern='frame_*.jpg', focal_weight='auto'):
+                 frame_pattern='frame_*.jpg', focal_weight='auto',
+                 lab_match=True, pixel_match=True, multi_band=True):
     """전체 프레임을 일괄 스티칭한다.
 
     Args:
@@ -620,11 +767,20 @@ def batch_stitch(left_dir, right_dir, calibration_path, output_dir,
 
     # Stitcher 초기화
     stitcher = PanoramaStitcher(calibration_path, method=method,
-                                focal_weight=focal_weight)
+                                focal_weight=focal_weight,
+                                lab_match=lab_match, pixel_match=pixel_match,
+                                multi_band=multi_band)
 
     # 멀티프로세싱용 파라미터 직렬화 (GPU 관련 필드 제외)
     stitcher_params = {
         'method': stitcher.method,
+        'pixel_match': stitcher.pixel_match,
+        'lab_match': stitcher.lab_match,
+        'multi_band': stitcher.multi_band,
+        'mbb_num_bands': getattr(stitcher, 'mbb_num_bands', 5),
+        '_mbb_num_bands': getattr(stitcher, '_mbb_num_bands', 0),
+        '_mbb_alpha_pyr': getattr(stitcher, '_mbb_alpha_pyr', None),
+        '_mbb_valid_mask_3c': getattr(stitcher, '_mbb_valid_mask_3c', None),
         'image_size': stitcher.image_size,
         'w': stitcher.w, 'h': stitcher.h,
         'focal_length': stitcher.focal_length,
@@ -642,6 +798,7 @@ def batch_stitch(left_dir, right_dir, calibration_path, output_dir,
         '_has_overlap': stitcher._has_overlap,
         '_crop_rect': stitcher._crop_rect,
         '_exposure_luts': stitcher._exposure_luts,
+        '_ab_shifts': stitcher._ab_shifts,
         '_gpu_maps': None,  # GPU는 프로세스 간 공유 불가
     }
 
@@ -704,7 +861,8 @@ def batch_stitch(left_dir, right_dir, calibration_path, output_dir,
 
 def stitch_from_iterator(frame_iterator, calibration_path, output_dir,
                          method='cylindrical', focal_weight='auto', fps=30,
-                         no_video=False, total_frames=None, audio_source=None):
+                         no_video=False, total_frames=None, audio_source=None,
+                         lab_match=True, pixel_match=True, multi_band=True):
     """메모리 이터레이터에서 프레임을 받아 스티칭한다 (디스크 I/O 최소화).
 
     Args:
@@ -722,7 +880,9 @@ def stitch_from_iterator(frame_iterator, calibration_path, output_dir,
     frames_dir.mkdir(parents=True, exist_ok=True)
 
     stitcher = PanoramaStitcher(calibration_path, method=method,
-                                focal_weight=focal_weight)
+                                focal_weight=focal_weight,
+                                lab_match=lab_match, pixel_match=pixel_match,
+                                multi_band=multi_band)
 
     try:
         from tqdm import tqdm

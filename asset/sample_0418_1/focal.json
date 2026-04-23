@@ -1,0 +1,10 @@
+{
+  "left_focal_mm": 24,
+  "right_focal_mm": 24,
+  "_note": {
+    "reference": "left",
+    "left": "Galaxy S25 Ultra (SM-S938N), 1x main, 35mm equiv 24mm (confirmed from metadata)",
+    "right": "Galaxy (Android 12, model unknown in metadata) — matched to left reference",
+    "source_files": ["갤럭시_좌_1.mp4", "갤럭시_우_1.mp4"]
+  }
+}

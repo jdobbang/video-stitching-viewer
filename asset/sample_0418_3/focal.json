@@ -1,0 +1,10 @@
+{
+  "left_focal_mm": 26,
+  "right_focal_mm": 26,
+  "_note": {
+    "reference": "right (left model unknown)",
+    "left": "Galaxy (Android 12, model unknown in metadata) — matched to right reference",
+    "right": "iPhone 15, 1x main, 35mm equiv 26mm (confirmed from metadata)",
+    "source_files": ["갤럭시_좌_3.mp4", "아이폰_우_3.MOV"]
+  }
+}

@@ -57,6 +57,23 @@ def step_sync(args):
     first_pair = next(frame_iter, None)
     if first_pair is not None:
         first_left, first_right = first_pair
+
+        # 혼합 해상도 대응: 우측을 좌측 해상도에 맞춰 리사이즈
+        target_hw = first_left.shape[:2]
+        if first_right.shape[:2] != target_hw:
+            th, tw = target_hw
+            print(f"      Resolution mismatch: L={first_left.shape[1]}x{first_left.shape[0]} "
+                  f"R={first_right.shape[1]}x{first_right.shape[0]} "
+                  f"→ resizing R to L ({tw}x{th})")
+            first_right = cv2.resize(first_right, (tw, th))
+
+            def _normalize_right(it, th=th, tw=tw):
+                for l, r in it:
+                    if r.shape[:2] != (th, tw):
+                        r = cv2.resize(r, (tw, th))
+                    yield l, r
+            frame_iter = _normalize_right(frame_iter)
+
         args._calib_left = first_left
         args._calib_right = first_right
         args._frame_iterator = itertools.chain([(first_left, first_right)], frame_iter)
@@ -136,6 +153,15 @@ def step_stitch(args):
     # 좌측 MOV 오디오를 최종 비디오에 포함
     audio_src = args.left if hasattr(args, 'left') and args.left else None
 
+    pixel_match = not args.no_pixel_match
+    lab_match = not args.no_lab_match
+    multi_band = not args.no_multi_band
+    if not pixel_match:
+        print(f"      Pixel equalization: DISABLED (raw warped blending)")
+    elif not lab_match:
+        print(f"      Pixel equalization: BGR gain only (Lab a/b disabled)")
+    print(f"      Blending: {'Multi-band (Laplacian pyramid)' if multi_band else 'Linear alpha'}")
+
     # 스트리밍 경로: 메모리 이터레이터 사용
     if hasattr(args, '_frame_iterator') and args._frame_iterator is not None:
         total = getattr(args, '_total_frames', None)
@@ -145,6 +171,9 @@ def step_stitch(args):
             fps=int(args.fps) if args.fps else 30,
             total_frames=total,
             audio_source=audio_src,
+            lab_match=lab_match,
+            pixel_match=pixel_match,
+            multi_band=multi_band,
         )
     else:
         # 디스크 기반 폴백 (--skip-sync 등)
@@ -156,6 +185,9 @@ def step_stitch(args):
             args.calib, frames_out,
             method=args.method, num_workers=args.workers,
             focal_weight=fw,
+            lab_match=lab_match,
+            pixel_match=pixel_match,
+            multi_band=multi_band,
         )
         if args.fps:
             create_video(
@@ -193,6 +225,13 @@ def main():
                         help="우측 카메라 35mm 환산 focal length (mm, overrides focal.json)")
     parser.add_argument("--max-frames", type=int, default=None,
                         help="Max frames to extract (default: all)")
+
+    parser.add_argument("--no-pixel-match", action="store_true",
+                        help="픽셀 이퀄라이징 전체 비활성화 (BGR 게인 + Lab a/b 모두 끔)")
+    parser.add_argument("--no-lab-match", action="store_true",
+                        help="Lab a/b 색상 매칭만 비활성화 (BGR 게인은 유지)")
+    parser.add_argument("--no-multi-band", action="store_true",
+                        help="Multi-band blending 비활성화 (기본: 활성화). 끄면 선형 알파 블렌딩 사용")
 
     parser.add_argument("--skip-sync", action="store_true",
                         help="Skip audio sync (use existing frames)")

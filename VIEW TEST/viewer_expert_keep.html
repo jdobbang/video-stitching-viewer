@@ -1,0 +1,1923 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Panorama Video Viewer</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            overflow: hidden;
+            background: #0a0a0f;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        }
+        #container { width: 100vw; height: 100vh; }
+
+        .panel {
+            position: absolute;
+            background: rgba(0,0,0,0.85);
+            padding: 16px 20px;
+            border-radius: 12px;
+            color: white;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        #progress-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            display: none;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 16px;
+            background: rgba(0,0,0,0.9);
+            border-top: 1px solid rgba(255,255,255,0.1);
+            z-index: 210;
+            font-size: 13px;
+            color: white;
+        }
+
+        #controls {
+            bottom: 50px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 24px;
+            align-items: center;
+            font-size: 13px;
+            z-index: 200;
+        }
+
+        #mode-panel {
+            top: 20px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        #info {
+            top: 20px;
+            left: 20px;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        #file-panel {
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            padding: 40px 60px;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .control-group label {
+            font-size: 11px;
+            color: rgba(255,255,255,0.6);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .control-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        input[type="range"] {
+            width: 100px;
+            cursor: pointer;
+            accent-color: #4a9eff;
+        }
+
+        #progress-wrapper {
+            flex: 1;
+        }
+
+        .value {
+            min-width: 45px;
+            text-align: right;
+            font-family: monospace;
+            font-size: 13px;
+        }
+
+        .btn {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: white;
+            padding: 8px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+            width: 100%;
+            text-align: left;
+        }
+        .btn:hover { background: rgba(255,255,255,0.2); }
+        .btn.active {
+            background: rgba(74, 158, 255, 0.3);
+            border-color: #4a9eff;
+        }
+
+        .btn-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+        }
+
+        #file-input {
+            display: none;
+        }
+
+        .drop-zone {
+            border: 2px dashed rgba(255,255,255,0.3);
+            border-radius: 16px;
+            padding: 40px;
+            margin: 20px 0;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .drop-zone:hover {
+            border-color: #4a9eff;
+            background: rgba(74, 158, 255, 0.1);
+        }
+        .drop-zone.dragover {
+            border-color: #4a9eff;
+            background: rgba(74, 158, 255, 0.2);
+        }
+
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 16px;
+            display: none;
+        }
+
+        #toast {
+            position: fixed;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.9);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 200;
+        }
+        #toast.active { opacity: 1; }
+
+        /* Bookmark panel */
+        #bookmark-panel {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            width: 320px;
+            max-height: calc(100vh - 40px);
+            display: none;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 150;
+            overflow: hidden;
+        }
+        #bookmark-panel .tag-row {
+            display: flex;
+            gap: 4px;
+        }
+        #bookmark-panel .tag-btn {
+            flex: 1;
+            padding: 6px 4px;
+            border-radius: 6px;
+            border: 2px solid rgba(255,255,255,0.2);
+            background: rgba(255,255,255,0.05);
+            color: white;
+            cursor: pointer;
+            font-size: 16px;
+            text-align: center;
+            transition: all 0.2s;
+        }
+        #bookmark-panel .tag-btn:hover { background: rgba(255,255,255,0.15); }
+        #bookmark-panel .tag-btn.active { border-color: #4a9eff; background: rgba(74,158,255,0.2); }
+
+        #bookmark-input-row {
+            display: flex;
+            gap: 6px;
+        }
+        #bookmark-input-row input {
+            flex: 1;
+            padding: 8px 10px;
+            border-radius: 6px;
+            border: 1px solid rgba(255,255,255,0.2);
+            background: rgba(255,255,255,0.08);
+            color: white;
+            font-size: 13px;
+            outline: none;
+        }
+        #bookmark-input-row input:focus { border-color: #4a9eff; }
+        #bookmark-input-row input::placeholder { color: rgba(255,255,255,0.35); }
+
+        #bookmark-list {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            min-height: 0;
+        }
+        .bookmark-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 10px;
+            border-radius: 8px;
+            background: rgba(255,255,255,0.05);
+            font-size: 13px;
+            transition: background 0.15s;
+        }
+        .bookmark-item:hover { background: rgba(255,255,255,0.1); }
+        .bookmark-item .bm-emoji { font-size: 18px; flex-shrink: 0; }
+        .bookmark-item .bm-time {
+            color: #4a9eff;
+            cursor: pointer;
+            font-family: monospace;
+            font-weight: bold;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        .bookmark-item .bm-time:hover { text-decoration: underline; }
+        .bookmark-item .bm-text {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .bookmark-item .bm-del {
+            cursor: pointer;
+            opacity: 0.3;
+            font-size: 14px;
+            flex-shrink: 0;
+            padding: 2px 4px;
+        }
+        .bookmark-item .bm-del:hover { opacity: 1; color: #ef4444; }
+
+        #bookmark-actions {
+            display: flex;
+            gap: 6px;
+        }
+
+        /* Progress bar marker overlay */
+        #progress-wrapper {
+            position: relative;
+            flex: 1;
+            overflow: visible;
+        }
+        #progress-markers {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+            overflow: visible;
+        }
+        .progress-marker {
+            position: absolute;
+            bottom: 0;
+            transform: translateX(-50%);
+            pointer-events: auto;
+            cursor: pointer;
+            z-index: 2;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            transition: all 0.15s;
+        }
+        .progress-marker .marker-bar {
+            width: 3px;
+            height: 32px;
+            border-radius: 2px;
+            transition: all 0.15s;
+        }
+        .progress-marker .marker-emoji {
+            font-size: 12px;
+            line-height: 1;
+            margin-bottom: 1px;
+            transition: all 0.15s;
+        }
+        .progress-marker:hover .marker-bar {
+            width: 5px;
+            height: 38px;
+            box-shadow: 0 0 8px currentColor;
+        }
+        .progress-marker:hover .marker-emoji {
+            font-size: 16px;
+        }
+        .marker-tooltip {
+            position: absolute;
+            bottom: calc(100% + 4px);
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.95);
+            color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            white-space: nowrap;
+            display: none;
+            pointer-events: none;
+        }
+        .progress-marker:hover .marker-tooltip { display: block; }
+
+        /* Collapsible panel toggle */
+        .panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            user-select: none;
+            margin: -16px -20px 10px;
+            padding: 10px 16px;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+        }
+        .panel-header:hover { background: rgba(255,255,255,0.05); }
+        .panel-header .panel-title {
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .panel-header .panel-toggle {
+            font-size: 10px;
+            color: rgba(255,255,255,0.4);
+            transition: transform 0.2s;
+        }
+        .panel-collapsed .panel-toggle { transform: rotate(-90deg); }
+        .panel-collapsed .panel-body { display: none !important; }
+
+        /* Audio waveform */
+        #audio-waveform {
+            position: absolute;
+            bottom: 100%;
+            left: 0;
+            width: 100%;
+            height: 28px;
+            pointer-events: none;
+            opacity: 0.5;
+        }
+
+        /* Auto-hide UI */
+        .auto-hide {
+            transition: opacity 0.4s ease;
+        }
+        body.ui-hidden .auto-hide {
+            opacity: 0;
+            pointer-events: none;
+        }
+        body.ui-hidden .auto-hide:hover {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        /* ===== MOBILE RESPONSIVE ===== */
+        html, body { touch-action: manipulation; }
+        #container { touch-action: none; }
+
+        /* Mobile tab bar for switching panels */
+        #mobile-tab-bar {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            z-index: 250;
+            background: rgba(0,0,0,0.92);
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding: 6px 8px;
+            gap: 4px;
+        }
+        .mobile-tab {
+            flex: 1;
+            padding: 8px 4px;
+            border: none;
+            border-radius: 8px;
+            background: transparent;
+            color: rgba(255,255,255,0.5);
+            font-size: 11px;
+            cursor: pointer;
+            text-align: center;
+        }
+        .mobile-tab.active {
+            background: rgba(74,158,255,0.25);
+            color: #4a9eff;
+        }
+        .mobile-tab .tab-icon { font-size: 18px; display: block; }
+        .mobile-tab .tab-label { font-size: 9px; margin-top: 2px; }
+
+        /* Mobile bottom controls (touch-friendly) */
+        #mobile-controls {
+            display: none;
+            position: fixed;
+            bottom: 50px;
+            left: 0; right: 0;
+            z-index: 205;
+            justify-content: center;
+            gap: 12px;
+            padding: 8px 16px;
+        }
+        .mobile-ctrl-btn {
+            width: 48px; height: 48px;
+            border-radius: 50%;
+            border: 1px solid rgba(255,255,255,0.2);
+            background: rgba(0,0,0,0.7);
+            color: white;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            backdrop-filter: blur(6px);
+        }
+        .mobile-ctrl-btn:active { background: rgba(74,158,255,0.3); }
+
+        @media (max-width: 768px) {
+            /* Show mobile elements */
+            #mobile-tab-bar { display: flex; }
+            #mobile-controls.visible { display: flex; }
+
+            /* Hide desktop panels by default, show via tab */
+            #info, #mode-panel, #controls { display: none !important; }
+
+            /* Bookmark panel: bottom sheet */
+            #bookmark-panel {
+                top: auto !important;
+                bottom: 50px;
+                left: 0 !important;
+                right: 0 !important;
+                width: auto !important;
+                max-width: 100vw;
+                max-height: 50vh;
+                border-radius: 16px 16px 0 0;
+                display: none;
+                z-index: 200;
+            }
+            #bookmark-panel.mobile-show { display: flex !important; }
+
+            /* Mode panel: bottom sheet */
+            #mode-panel.mobile-show {
+                display: flex !important;
+                position: fixed !important;
+                top: auto !important;
+                bottom: 50px !important;
+                left: 0 !important;
+                right: auto;
+                width: 100vw !important;
+                border-radius: 16px 16px 0 0;
+                z-index: 200;
+            }
+
+            /* Controls panel: bottom sheet */
+            #controls.mobile-show {
+                display: flex !important;
+                position: fixed !important;
+                bottom: 50px !important;
+                left: 0 !important;
+                right: 0 !important;
+                top: auto !important;
+                width: 100vw !important;
+                transform: none !important;
+                border-radius: 16px 16px 0 0;
+                flex-wrap: wrap;
+                justify-content: center;
+                z-index: 200;
+            }
+
+            /* Info: top sheet */
+            #info.mobile-show {
+                display: block !important;
+                position: fixed !important;
+                top: 48px !important;
+                left: 0 !important;
+                right: 0 !important;
+                width: 100vw !important;
+                border-radius: 0 0 12px 12px;
+                font-size: 12px;
+                z-index: 200;
+            }
+
+            /* File panel */
+            #file-panel {
+                padding: 24px 20px;
+                width: 90vw;
+                max-width: 400px;
+            }
+            .drop-zone { padding: 24px; }
+
+            /* Progress bar */
+            #progress-bar {
+                padding: 10px 12px;
+                gap: 8px;
+            }
+            #progress-bar .btn-icon {
+                width: 44px; height: 44px;
+                font-size: 20px;
+            }
+
+            /* Bigger touch targets */
+            .btn { padding: 10px 14px; font-size: 13px; min-height: 44px; }
+            .btn-icon { width: 44px; height: 44px; }
+            .tag-btn { padding: 10px 6px !important; font-size: 20px !important; min-height: 44px; }
+            #bookmark-input-row input { font-size: 16px; padding: 10px 12px; }
+            .bookmark-item { padding: 10px 12px; font-size: 14px; }
+            .bookmark-item .bm-del { padding: 6px 8px; font-size: 18px; }
+            .bookmark-item .bm-emoji { font-size: 22px; }
+
+            /* Progress markers bigger for touch */
+            .progress-marker .marker-bar { width: 5px; height: 28px; }
+            .progress-marker .marker-emoji { font-size: 14px; }
+
+            /* Toast above progress bar */
+            #toast { bottom: 70px; font-size: 14px; }
+
+            /* Panel header bigger */
+            .panel-header { padding: 12px 16px; }
+            .panel-header .panel-title { font-size: 14px; }
+        }
+
+        @media (max-width: 480px) {
+            .value { min-width: 38px; font-size: 11px; }
+            #progress-bar select { font-size: 11px; padding: 4px 6px; }
+        }
+    </style>
+</head>
+<body>
+    <div id="container"></div>
+
+    <!-- Mobile tab bar -->
+    <div id="mobile-tab-bar">
+        <button class="mobile-tab" data-panel="none" onclick="mobileTabSwitch('none')">
+            <span class="tab-icon">👁️</span><span class="tab-label">뷰어</span>
+        </button>
+        <button class="mobile-tab" data-panel="bookmark-panel" onclick="mobileTabSwitch('bookmark-panel')">
+            <span class="tab-icon">📌</span><span class="tab-label">이벤트</span>
+        </button>
+        <button class="mobile-tab" data-panel="mode-panel" onclick="mobileTabSwitch('mode-panel')">
+            <span class="tab-icon">🎛️</span><span class="tab-label">설정</span>
+        </button>
+        <button class="mobile-tab" data-panel="controls" onclick="mobileTabSwitch('controls')">
+            <span class="tab-icon">🎥</span><span class="tab-label">카메라</span>
+        </button>
+        <button class="mobile-tab" data-panel="info" onclick="mobileTabSwitch('info')">
+            <span class="tab-icon">ℹ️</span><span class="tab-label">도움말</span>
+        </button>
+    </div>
+
+    <!-- Mobile floating controls (frame step, screenshot) -->
+    <div id="mobile-controls">
+        <button class="mobile-ctrl-btn" onclick="stepFrame(-1)">⏮</button>
+        <button class="mobile-ctrl-btn" onclick="takeScreenshot()">📸</button>
+        <button class="mobile-ctrl-btn" onclick="stepFrame(1)">⏭</button>
+    </div>
+
+    <div id="loading">비디오 로딩중...</div>
+    <div id="toast"></div>
+
+    <div class="panel" id="file-panel">
+        <h2 style="margin-bottom: 8px;">Panorama Video Viewer</h2>
+        <p style="color: rgba(255,255,255,0.6); margin-bottom: 16px;">파노라마 비디오를 3D로 감상하세요</p>
+
+        <div class="drop-zone" id="drop-zone">
+            <p style="font-size: 48px; margin-bottom: 16px;">📁</p>
+            <p id="drop-text">비디오 파일을 드래그하거나 클릭하여 선택</p>
+            <p style="font-size: 12px; color: rgba(255,255,255,0.5); margin-top: 8px;">MP4, WebM, MOV</p>
+        </div>
+
+        <input type="file" id="file-input" accept="video/*">
+    </div>
+
+    <div class="panel auto-hide" id="info" style="display: none;">
+        <div class="panel-header" onclick="togglePanel(this)">
+            <span class="panel-title">ℹ️ 조작법</span>
+            <span class="panel-toggle">▼</span>
+        </div>
+        <div class="panel-body">
+            <div>🖱️ 드래그: 시점 이동 &nbsp;|&nbsp; 클릭: 해당 지점으로 이동 &nbsp;|&nbsp; 🔍 스크롤: 줌</div>
+            <div style="margin-top: 4px; font-size: 11px; color: rgba(255,255,255,0.5);">
+                A/W/D/S 이동 &nbsp;|&nbsp; Q/E 회전 &nbsp;|&nbsp; R/F 줌인/아웃 &nbsp;|&nbsp; ,/. 프레임이동 &nbsp;|&nbsp; P 스크린샷 &nbsp;|&nbsp; F11 풀스크린
+            </div>
+        </div>
+    </div>
+
+    <div class="panel auto-hide" id="mode-panel" style="display: none; right: 340px;">
+        <div class="panel-header" onclick="togglePanel(this)">
+            <span class="panel-title">🎛️ 설정</span>
+            <span class="panel-toggle">▼</span>
+        </div>
+        <div class="panel-body" style="display:flex; flex-direction:column; gap:8px;">
+            <div style="font-size: 11px; color: rgba(255,255,255,0.6);">투영 모드</div>
+            <button class="btn active" data-mode="cylinder">🔵 Cylinder</button>
+            <button class="btn" data-mode="sphere">🌐 Sphere</button>
+            <div style="font-size: 11px; color: rgba(255,255,255,0.6); margin-top: 4px;">도구</div>
+            <button class="btn" id="screenshot-btn">📸 스크린샷 (P)</button>
+            <button class="btn" id="fullscreen-btn">⛶ 풀스크린 (F11)</button>
+        </div>
+    </div>
+
+    <!-- 북마크/이벤트 패널 -->
+    <div class="panel" id="bookmark-panel">
+        <div class="panel-header" onclick="togglePanel(this)">
+            <span class="panel-title">📌 이벤트 메모 (<span id="bookmark-count">0</span>)</span>
+            <span class="panel-toggle">▼</span>
+        </div>
+        <div class="panel-body" style="display:flex; flex-direction:column; gap:10px;">
+            <div class="tag-row">
+                <div class="tag-btn active" data-tag="goal" title="골">⚽</div>
+                <div class="tag-btn active" data-tag="attack" title="공격">⚔️</div>
+                <div class="tag-btn active" data-tag="defense" title="수비">🛡️</div>
+                <div class="tag-btn active" data-tag="feedback" title="피드백">📋</div>
+                <div class="tag-btn active" data-tag="memo" title="메모">📝</div>
+            </div>
+            <div id="bookmark-input-row">
+                <input type="text" id="bookmark-text" placeholder="메모 입력... (M키로 빠른 추가)">
+                <button class="btn" id="bookmark-add-btn" style="width: auto; padding: 8px 14px;">+ 추가</button>
+            </div>
+            <div id="bookmark-list"></div>
+            <div id="bookmark-actions">
+                <button class="btn" id="bookmark-save-btn" style="flex:1;">💾 저장</button>
+                <button class="btn" id="bookmark-load-btn" style="flex:1;">📂 불러오기</button>
+                <input type="file" id="bookmark-file-input" accept=".json" style="display:none;">
+            </div>
+        </div>
+    </div>
+
+    <!-- 하단 풀와이드 재생바 -->
+    <div id="progress-bar">
+        <button class="btn btn-icon" id="play-btn" style="flex-shrink:0;">▶</button>
+        <span class="value" id="current-time" style="min-width:50px;">0:00</span>
+        <div id="progress-wrapper">
+            <canvas id="audio-waveform"></canvas>
+            <input type="range" id="progress" min="0" max="100" value="0" style="width:100%;">
+            <div id="progress-markers"></div>
+        </div>
+        <span class="value" id="duration" style="min-width:50px;">0:00</span>
+        <select id="speed" style="background: #222; border: 1px solid rgba(255,255,255,0.2); color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; flex-shrink:0;">
+            <option value="0.25" style="background:#222; color:white;">0.25x</option>
+            <option value="0.5" style="background:#222; color:white;">0.5x</option>
+            <option value="1" selected style="background:#222; color:white;">1x</option>
+            <option value="1.5" style="background:#222; color:white;">1.5x</option>
+            <option value="2" style="background:#222; color:white;">2x</option>
+        </select>
+    </div>
+
+    <div class="panel auto-hide" id="controls" style="display: none;">
+        <div class="panel-header" onclick="togglePanel(this)">
+            <span class="panel-title">🎥 카메라</span>
+            <span class="panel-toggle">▼</span>
+        </div>
+        <div class="panel-body" style="display:flex; gap:24px; align-items:center;">
+            <div class="control-group">
+                <label>Camera FOV</label>
+                <div class="control-row">
+                    <input type="range" id="fov" min="1" max="90" value="50">
+                    <span class="value" id="fov-val">50°</span>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label>비디오 회전</label>
+                <div class="control-row">
+                    <button class="btn" id="rotate-ccw" style="width: auto; padding: 8px 12px;" title="반시계방향 90°">↺</button>
+                    <button class="btn" id="rotate-cw" style="width: auto; padding: 8px 12px;" title="시계방향 90°">↻</button>
+                </div>
+            </div>
+
+            <div class="control-group" title="배럴/핀쿠션 왜곡 보정 (음수=배럴 보정, 양수=핀쿠션 보정)">
+                <label>왜곡 보정 K1</label>
+                <div class="control-row">
+                    <input type="range" id="dist-k1" min="-0.6" max="0.6" step="0.01" value="-0.18">
+                    <span class="value" id="dist-k1-val">-0.18</span>
+                </div>
+            </div>
+
+            <div class="control-group" title="2차 방사형 왜곡 보정">
+                <label>왜곡 보정 K2</label>
+                <div class="control-row">
+                    <input type="range" id="dist-k2" min="-0.3" max="0.3" step="0.005" value="0.04">
+                    <span class="value" id="dist-k2-val">0.040</span>
+                </div>
+            </div>
+
+            <button class="btn" id="reset" style="width: auto; padding: 8px 16px;">⟲ Reset</button>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        let scene, camera, renderer, mesh, videoTexture, video;
+        let currentMode = 'cylinder';
+        let isUserInteracting = false;
+        let onPointerDownMouseX = 0, onPointerDownMouseY = 0;
+        let lon = 0, onPointerDownLon = 0;
+        let lat = 0, onPointerDownLat = 0;
+        let videoRotation = 0;
+
+        // Default parameters (will be updated based on video)
+        let IMG_WIDTH = 2850;
+        let IMG_HEIGHT = 1109;
+        let FOCAL_LENGTH = 1920;
+        let TOTAL_FOV_RAD = IMG_WIDTH / FOCAL_LENGTH;
+
+        // --- Smooth keyboard control system ---
+        const keysPressed = new Set();
+        const velocity = { lon: 0, lat: 0, rotation: 0, fov: 0 };
+        const ACCEL = 0.025;
+        const DAMPING = 0.90;
+        const MAX_VEL = { pan: 0.6, rotation: 0.08, fov: 0.35 };
+        const VEL_THRESHOLD = 0.001;
+
+        const _isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || window.innerWidth <= 768;
+
+        // 모바일 UI 텍스트 변경
+        if (_isMobile) {
+            const dt = document.getElementById('drop-text');
+            if (dt) dt.textContent = '탭하여 비디오 파일 선택';
+        }
+
+        const container = document.getElementById('container');
+        const filePanel = document.getElementById('file-panel');
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+
+        // File handling
+        dropZone.addEventListener('click', () => fileInput.click());
+
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+
+        let currentVideoFileName = '';
+        let pendingBookmarkData = null;
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            const files = Array.from(e.dataTransfer.files);
+            let videoFile = null, jsonFile = null;
+            for (const file of files) {
+                if (file.type.startsWith('video/') || /\.(mp4|webm|mov)$/i.test(file.name)) {
+                    videoFile = file;
+                } else if (file.name.endsWith('.json')) {
+                    jsonFile = file;
+                }
+            }
+            if (jsonFile) {
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    if (video) {
+                        loadBookmarksFromJSON(ev.target.result);
+                    } else {
+                        pendingBookmarkData = ev.target.result;
+                    }
+                };
+                reader.readAsText(jsonFile);
+            }
+            if (videoFile) loadVideo(videoFile);
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) loadVideo(file);
+        });
+
+        function loadVideo(file) {
+            currentVideoFileName = file.name.replace(/\.[^.]+$/, '');
+            filePanel.style.display = 'none';
+            document.getElementById('loading').style.display = 'block';
+
+            video = document.createElement('video');
+            video.src = URL.createObjectURL(file);
+            video.crossOrigin = 'anonymous';
+            video.loop = true;
+            video.muted = _isMobile; // 모바일은 muted로 시작 (autoplay 허용)
+            video.playsInline = true;
+
+            video.addEventListener('loadedmetadata', () => {
+                IMG_WIDTH = video.videoWidth;
+                IMG_HEIGHT = video.videoHeight;
+                FOCAL_LENGTH = IMG_WIDTH * 0.67;
+                TOTAL_FOV_RAD = IMG_WIDTH / FOCAL_LENGTH;
+
+                document.getElementById('loading').style.display = 'none';
+                initThree();
+                showControls();
+            });
+
+            video.addEventListener('error', () => {
+                const loading = document.getElementById('loading');
+                const err = video.error;
+                if (err && err.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED) {
+                    loading.innerHTML = '⚠️ 코덱 미지원<br><span style="font-size:13px; color:rgba(255,255,255,0.6);">브라우저는 H.264 코덱만 재생 가능합니다.<br>OpenCV mp4v 파일은 재생 불가 — <b>.web.mp4</b> 파일을 사용하세요.</span>';
+                } else {
+                    loading.textContent = '비디오 로드 실패';
+                }
+            });
+
+            video.load();
+        }
+
+        function showControls() {
+            document.getElementById('progress-bar').style.display = 'flex';
+            document.getElementById('bookmark-panel').style.display = 'flex';
+            if (_isMobile) {
+                // 모바일: 탭바로 전환, 초기에는 패널 숨김
+                document.getElementById('mobile-controls').classList.add('visible');
+                document.getElementById('bookmark-panel').style.display = 'none';
+                mobileTabSwitch('none');
+            } else {
+                document.getElementById('info').style.display = 'block';
+                document.getElementById('mode-panel').style.display = 'flex';
+                document.getElementById('controls').style.display = 'flex';
+                document.getElementById('bookmark-panel').style.display = 'flex';
+            }
+            if (pendingBookmarkData) {
+                setTimeout(() => {
+                    loadBookmarksFromJSON(pendingBookmarkData);
+                    pendingBookmarkData = null;
+                }, 300);
+            }
+        }
+
+        function formatTime(seconds) {
+            const m = Math.floor(seconds / 60);
+            const s = Math.floor(seconds % 60);
+            return `${m}:${s.toString().padStart(2, '0')}`;
+        }
+
+        function initThree() {
+            scene = new THREE.Scene();
+
+            camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 0, 0.1);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            container.appendChild(renderer.domElement);
+
+            // Create video texture
+            videoTexture = new THREE.VideoTexture(video);
+            videoTexture.minFilter = THREE.LinearFilter;
+            videoTexture.magFilter = THREE.LinearFilter;
+
+            createGeometry('cylinder');
+
+            // Event listeners
+            container.addEventListener('pointerdown', onPointerDown);
+            container.addEventListener('pointermove', onPointerMove);
+            container.addEventListener('pointerup', onPointerUp);
+            container.addEventListener('wheel', onWheel);
+            window.addEventListener('resize', onResize);
+
+            // Video controls
+            const playBtn = document.getElementById('play-btn');
+            const progress = document.getElementById('progress');
+            const speedSelect = document.getElementById('speed');
+
+            playBtn.addEventListener('click', () => {
+                if (video.paused) {
+                    video.play();
+                    playBtn.textContent = '⏸';
+                } else {
+                    video.pause();
+                    playBtn.textContent = '▶';
+                }
+            });
+
+            video.addEventListener('timeupdate', () => {
+                const pct = (video.currentTime / video.duration) * 100;
+                progress.value = pct;
+                document.getElementById('current-time').textContent = formatTime(video.currentTime);
+            });
+
+            video.addEventListener('loadedmetadata', () => {
+                document.getElementById('duration').textContent = formatTime(video.duration);
+            });
+
+            progress.addEventListener('input', (e) => {
+                const time = (e.target.value / 100) * video.duration;
+                video.currentTime = time;
+            });
+            progress.addEventListener('mousedown', (e) => {
+                e.stopPropagation();
+                const rect = progress.getBoundingClientRect();
+                const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                progress.value = ratio * 100;
+                video.currentTime = ratio * video.duration;
+            });
+            progress.addEventListener('click', (e) => { e.stopPropagation(); });
+            progress.addEventListener('pointerdown', (e) => { e.stopPropagation(); });
+
+            speedSelect.addEventListener('change', (e) => {
+                video.playbackRate = parseFloat(e.target.value);
+            });
+
+            // View controls
+            document.getElementById('fov').addEventListener('input', (e) => {
+                camera.fov = parseFloat(e.target.value);
+                camera.updateProjectionMatrix();
+                document.getElementById('fov-val').textContent = e.target.value + '°';
+                updateDistortionUniforms(); // fovRatio uniform 갱신
+            });
+
+            document.getElementById('reset').addEventListener('click', resetView);
+
+            // 비디오 회전 버튼 (마우스 누르고 있는 동안 회전)
+            const rotateCcwBtn = document.getElementById('rotate-ccw');
+            const rotateCwBtn = document.getElementById('rotate-cw');
+
+            const holdKey = (key) => ({
+                md() { keysPressed.add(key); },
+                mu() { keysPressed.delete(key); }
+            });
+            const ccwH = holdKey('_ccw'), cwH = holdKey('_cw');
+            rotateCcwBtn.addEventListener('mousedown', ccwH.md);
+            rotateCcwBtn.addEventListener('mouseup', ccwH.mu);
+            rotateCcwBtn.addEventListener('mouseleave', ccwH.mu);
+            rotateCcwBtn.addEventListener('touchstart', (e) => { e.preventDefault(); ccwH.md(); });
+            rotateCcwBtn.addEventListener('touchend', ccwH.mu);
+            rotateCwBtn.addEventListener('mousedown', cwH.md);
+            rotateCwBtn.addEventListener('mouseup', cwH.mu);
+            rotateCwBtn.addEventListener('mouseleave', cwH.mu);
+            rotateCwBtn.addEventListener('touchstart', (e) => { e.preventDefault(); cwH.md(); });
+            rotateCwBtn.addEventListener('touchend', cwH.mu);
+
+            // 키보드 입력
+            const codeMap = {
+                'KeyA': 'arrowleft', 'KeyW': 'arrowup',
+                'KeyD': 'arrowright', 'KeyS': 'arrowdown',
+                'KeyQ': 'q', 'KeyE': 'e',
+                'KeyR': 'zoomin', 'KeyF': 'zoomout',
+            };
+            window.addEventListener('keydown', (e) => {
+                // Space: 재생/정지
+                if (e.code === 'Space') {
+                    e.preventDefault();
+                    if (video.paused) {
+                        video.play();
+                        document.getElementById('play-btn').textContent = '⏸';
+                    } else {
+                        video.pause();
+                        document.getElementById('play-btn').textContent = '▶';
+                    }
+                    return;
+                }
+                // 화살표 좌/우: 5초 이동
+                if (e.code === 'ArrowLeft') {
+                    e.preventDefault();
+                    video.currentTime = Math.max(0, video.currentTime - 5);
+                    return;
+                }
+                if (e.code === 'ArrowRight') {
+                    e.preventDefault();
+                    video.currentTime = Math.min(video.duration, video.currentTime + 5);
+                    return;
+                }
+                // P: 스크린샷
+                if (e.code === 'KeyP') {
+                    e.preventDefault();
+                    takeScreenshot();
+                    return;
+                }
+                // F11: 풀스크린
+                if (e.code === 'F11') {
+                    e.preventDefault();
+                    toggleFullscreen();
+                    return;
+                }
+                // , (Comma): 이전 프레임
+                if (e.code === 'Comma') {
+                    e.preventDefault();
+                    stepFrame(-1);
+                    return;
+                }
+                // . (Period): 다음 프레임
+                if (e.code === 'Period') {
+                    e.preventDefault();
+                    stepFrame(1);
+                    return;
+                }
+                // M: 메모 추가 (입력란 포커스)
+                if (e.code === 'KeyM') {
+                    e.preventDefault();
+                    const input = document.getElementById('bookmark-text');
+                    if (document.activeElement === input) return;
+                    if (!video.paused) {
+                        video.pause();
+                        document.getElementById('play-btn').textContent = '▶';
+                    }
+                    input.focus();
+                    showToast('📌 메모 입력... (Enter로 추가)');
+                    return;
+                }
+
+                const mapped = codeMap[e.code];
+                if (mapped) {
+                    keysPressed.add(mapped);
+                    e.preventDefault();
+                }
+            });
+            window.addEventListener('keyup', (e) => {
+                const mapped = codeMap[e.code];
+                if (mapped) keysPressed.delete(mapped);
+            });
+
+            // 재생바 클릭/드래그
+            const progressBar = document.getElementById('progress');
+            const seekTo = (e) => {
+                const rect = progressBar.getBoundingClientRect();
+                const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                video.currentTime = ratio * video.duration;
+            };
+            progressBar.addEventListener('click', seekTo);
+            progressBar.addEventListener('mousedown', (e) => {
+                seekTo(e);
+                const onMove = (e) => seekTo(e);
+                const onUp = () => {
+                    window.removeEventListener('mousemove', onMove);
+                    window.removeEventListener('mouseup', onUp);
+                };
+                window.addEventListener('mousemove', onMove);
+                window.addEventListener('mouseup', onUp);
+            });
+
+            // Mode buttons
+            document.querySelectorAll('[data-mode]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('[data-mode]').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    currentMode = btn.dataset.mode;
+                    createGeometry(currentMode);
+                });
+            });
+
+            // 스크린샷 / 풀스크린 버튼
+            document.getElementById('screenshot-btn').addEventListener('click', takeScreenshot);
+            document.getElementById('fullscreen-btn').addEventListener('click', toggleFullscreen);
+
+            // 왜곡 보정 슬라이더
+            document.getElementById('dist-k1').addEventListener('input', (e) => {
+                document.getElementById('dist-k1-val').textContent = parseFloat(e.target.value).toFixed(2);
+                updateDistortionUniforms();
+            });
+            document.getElementById('dist-k2').addEventListener('input', (e) => {
+                document.getElementById('dist-k2-val').textContent = parseFloat(e.target.value).toFixed(3);
+                updateDistortionUniforms();
+            });
+
+            // 오디오 파형 분석
+            analyzeAudioWaveform();
+
+            // Start playback
+            video.play().then(() => {
+                document.getElementById('play-btn').textContent = '⏸';
+            }).catch(() => {});
+
+            animate();
+        }
+
+        function resetView() {
+            lon = 0; lat = 0;
+            videoRotation = 0;
+            camera.fov = 50;
+            camera.updateProjectionMatrix();
+            document.getElementById('fov').value = 50;
+            document.getElementById('fov-val').textContent = '50°';
+            // 왜곡 보정 슬라이더 초기화
+            document.getElementById('dist-k1').value = '-0.18';
+            document.getElementById('dist-k1-val').textContent = '-0.18';
+            document.getElementById('dist-k2').value = '0.04';
+            document.getElementById('dist-k2-val').textContent = '0.040';
+            updateDistortionUniforms();
+            createGeometry(currentMode);
+        }
+
+        // ── 왜곡 보정 ShaderMaterial ────────────────────────────────────────
+        // Brown-Conrady 방사형 왜곡 역보정 모델
+        // k1 < 0 → 배럴 왜곡 보정 / k1 > 0 → 핀쿠션 왜곡 보정
+        // fovRatio: 줌 레벨에 따라 보정 강도 비례 조절
+        const DISTORTION_VERT = `
+            varying vec2 vUv;
+            void main() {
+                vUv = uv;
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+        `;
+        const DISTORTION_FRAG = `
+            uniform sampler2D map;
+            uniform float k1;
+            uniform float k2;
+            uniform float fovRatio;
+            varying vec2 vUv;
+            void main() {
+                vec2 uv = vUv * 2.0 - 1.0;
+                float r2 = dot(uv, uv);
+                float r4 = r2 * r2;
+                // Brown-Conrady 역보정: 원래 픽셀 위치를 역산
+                float correction = 1.0 + k1 * r2 + k2 * r4;
+                // 줌인 시(fovRatio 낮을수록) 보정 강도 완화
+                correction = mix(1.0, correction, clamp(fovRatio, 0.0, 1.0));
+                vec2 correctedUv = uv * correction;
+                correctedUv = correctedUv * 0.5 + 0.5;
+                if (correctedUv.x < 0.0 || correctedUv.x > 1.0 ||
+                    correctedUv.y < 0.0 || correctedUv.y > 1.0) {
+                    gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+                    return;
+                }
+                gl_FragColor = texture2D(map, correctedUv);
+            }
+        `;
+
+        function getDistortionUniforms() {
+            const k1 = parseFloat(document.getElementById('dist-k1')?.value ?? '-0.18');
+            const k2 = parseFloat(document.getElementById('dist-k2')?.value ?? '0.04');
+            return {
+                map:      { value: videoTexture },
+                k1:       { value: k1 },
+                k2:       { value: k2 },
+                fovRatio: { value: camera ? camera.fov / 90.0 : 0.55 },
+            };
+        }
+
+        function updateDistortionUniforms() {
+            if (!mesh || !mesh.material.uniforms) return;
+            const u = mesh.material.uniforms;
+            u.k1.value       = parseFloat(document.getElementById('dist-k1').value);
+            u.k2.value       = parseFloat(document.getElementById('dist-k2').value);
+            u.fovRatio.value = camera.fov / 90.0;
+        }
+        // ────────────────────────────────────────────────────────────────────
+
+        function createGeometry(mode) {
+            if (!videoTexture) return;
+
+            if (mesh) {
+                scene.remove(mesh);
+                mesh.geometry.dispose();
+                mesh.material.dispose();
+            }
+
+            const curve = 1.0;
+            const distance = 1.0;
+            const radius = 50 * distance;
+
+            let geometry;
+
+            if (mode === 'cylinder') {
+                const arcAngle = TOTAL_FOV_RAD * curve;
+                const cylinderHeight = radius * arcAngle / (IMG_WIDTH / IMG_HEIGHT);
+
+                geometry = new THREE.CylinderGeometry(
+                    radius, radius, cylinderHeight,
+                    64, 32, true,          // 수직 세그먼트 1→32: UV 리매핑 정밀도 확보
+                    -arcAngle / 2, arcAngle
+                );
+                geometry.scale(-1, 1, 1);
+
+            } else if (mode === 'sphere') {
+                const phiLength = TOTAL_FOV_RAD * curve;
+                const thetaLength = phiLength / (IMG_WIDTH / IMG_HEIGHT);
+
+                geometry = new THREE.SphereGeometry(
+                    radius,
+                    64, 32,
+                    Math.PI / 2 - phiLength / 2, phiLength,
+                    Math.PI / 2 - thetaLength / 2, thetaLength
+                );
+                geometry.scale(-1, 1, 1);
+            }
+
+            // MeshBasicMaterial → ShaderMaterial (왜곡 보정)
+            const material = new THREE.ShaderMaterial({
+                uniforms:       getDistortionUniforms(),
+                vertexShader:   DISTORTION_VERT,
+                fragmentShader: DISTORTION_FRAG,
+                side:           THREE.DoubleSide,
+            });
+
+            mesh = new THREE.Mesh(geometry, material);
+
+            if (mode === 'cylinder' || mode === 'sphere') {
+                mesh.rotation.y = Math.PI / 2;
+            }
+            mesh.rotation.z = THREE.MathUtils.degToRad(videoRotation);
+
+            scene.add(mesh);
+        }
+
+        let prevPointerX = 0, prevPointerY = 0;
+        let smoothTarget = null;
+        const SMOOTH_LERP = 0.08;
+
+        function isClickOnUI(event) {
+            const el = event.target;
+            if (el.closest('#controls') || el.closest('#mode-panel') ||
+                el.closest('#progress-bar') || el.closest('#info') || el.closest('#file-panel') || el.closest('#bookmark-panel') ||
+                el.closest('#mobile-tab-bar') || el.closest('#mobile-controls') ||
+                el.tagName === 'INPUT' || el.tagName === 'SELECT' || el.tagName === 'BUTTON') {
+                return true;
+            }
+            return false;
+        }
+
+        function onPointerDown(event) {
+            if (isClickOnUI(event)) return;
+
+            isUserInteracting = true;
+            onPointerDownMouseX = event.clientX;
+            onPointerDownMouseY = event.clientY;
+            prevPointerX = event.clientX;
+            prevPointerY = event.clientY;
+            onPointerDownLon = lon;
+            onPointerDownLat = lat;
+            velocity.lon = 0;
+            velocity.lat = 0;
+        }
+
+        function onPointerMove(event) {
+            if (isUserInteracting) {
+                const dx = event.clientX - prevPointerX;
+                const dy = event.clientY - prevPointerY;
+                const fovScale = camera.fov / 50;
+                lon -= dx * 0.08 * fovScale;
+                lat += dy * 0.08 * fovScale;
+                velocity.lon = -dx * 0.04 * fovScale;
+                velocity.lat = dy * 0.04 * fovScale;
+                prevPointerX = event.clientX;
+                prevPointerY = event.clientY;
+            }
+        }
+
+        function onPointerUp(event) {
+            isUserInteracting = false;
+            if (isClickOnUI(event)) return;
+
+            const dx = event.clientX - onPointerDownMouseX;
+            const dy = event.clientY - onPointerDownMouseY;
+            if (Math.sqrt(dx * dx + dy * dy) < 5 && !_isMobile) {
+                velocity.lon = 0;
+                velocity.lat = 0;
+                const targetLonLat = screenToLonLat(event.clientX, event.clientY);
+                if (targetLonLat) {
+                    smoothTarget = targetLonLat;
+                }
+            }
+        }
+
+        function screenToLonLat(screenX, screenY) {
+            const ndcX = (screenX / window.innerWidth) * 2 - 1;
+            const ndcY = -(screenY / window.innerHeight) * 2 + 1;
+
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), camera);
+
+            if (!mesh) return null;
+            const intersects = raycaster.intersectObject(mesh);
+            if (intersects.length === 0) return null;
+
+            const point = intersects[0].point;
+            const r = Math.sqrt(point.x * point.x + point.y * point.y + point.z * point.z);
+            const targetLat = 90 - THREE.MathUtils.radToDeg(Math.acos(point.y / r));
+            const targetLon = THREE.MathUtils.radToDeg(Math.atan2(point.z, point.x));
+            return { lon: targetLon, lat: targetLat };
+        }
+
+        function onWheel(event) {
+            const zoomSens = (camera.fov / 50) * 0.008;
+            velocity.fov += event.deltaY * zoomSens;
+        }
+
+        function onResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+        function snap(v) { return Math.abs(v) < VEL_THRESHOLD ? 0 : v; }
+
+        function updateSmoothControls() {
+            const fovRatio = camera.fov / 50;
+            const fovScale = Math.pow(fovRatio, 1.5);
+
+            // Pan (AWDS)
+            if (keysPressed.has('arrowleft'))  velocity.lon -= ACCEL * fovScale;
+            if (keysPressed.has('arrowright')) velocity.lon += ACCEL * fovScale;
+            if (keysPressed.has('arrowup'))    velocity.lat += ACCEL * fovScale;
+            if (keysPressed.has('arrowdown'))  velocity.lat -= ACCEL * fovScale;
+
+            // Rotation (Q/E + buttons)
+            const rotScale = fovScale * 0.4;
+            if (keysPressed.has('q') || keysPressed.has('_ccw')) velocity.rotation -= ACCEL * rotScale;
+            if (keysPressed.has('e') || keysPressed.has('_cw'))  velocity.rotation += ACCEL * rotScale;
+
+            // Zoom (R/F)
+            const zoomScale = fovRatio * 0.6;
+            if (keysPressed.has('zoomin'))  velocity.fov -= ACCEL * zoomScale;
+            if (keysPressed.has('zoomout')) velocity.fov += ACCEL * zoomScale;
+
+            // Clamp
+            const maxPan = MAX_VEL.pan * fovScale;
+            velocity.lon      = clamp(velocity.lon,      -maxPan, maxPan);
+            velocity.lat      = clamp(velocity.lat,      -maxPan, maxPan);
+            velocity.rotation = clamp(velocity.rotation, -MAX_VEL.rotation * fovScale, MAX_VEL.rotation * fovScale);
+            velocity.fov      = clamp(velocity.fov,      -MAX_VEL.fov, MAX_VEL.fov);
+
+            // Click-to-move animation
+            if (smoothTarget) {
+                if (velocity.lon !== 0 || velocity.lat !== 0) {
+                    smoothTarget = null;
+                } else {
+                    const dLon = smoothTarget.lon - lon;
+                    const dLat = smoothTarget.lat - lat;
+                    if (Math.abs(dLon) < 0.05 && Math.abs(dLat) < 0.05) {
+                        lon = smoothTarget.lon;
+                        lat = smoothTarget.lat;
+                        smoothTarget = null;
+                    } else {
+                        lon += dLon * SMOOTH_LERP;
+                        lat += dLat * SMOOTH_LERP;
+                    }
+                }
+            }
+
+            // Apply
+            if (!smoothTarget) {
+                lon += velocity.lon;
+                lat += velocity.lat;
+            }
+
+            if (velocity.rotation !== 0 && mesh) {
+                videoRotation += velocity.rotation;
+                mesh.rotation.z = THREE.MathUtils.degToRad(videoRotation);
+            }
+
+            if (velocity.fov !== 0) {
+                camera.fov = clamp(camera.fov + velocity.fov, 0.5, 90);
+                camera.updateProjectionMatrix();
+                document.getElementById('fov').value = Math.round(camera.fov);
+                document.getElementById('fov-val').textContent = Math.round(camera.fov) + '\u00B0';
+                updateDistortionUniforms(); // 줌 시 fovRatio 갱신
+            }
+
+            // Damping
+            velocity.lon      = snap(velocity.lon      * DAMPING);
+            velocity.lat      = snap(velocity.lat      * DAMPING);
+            velocity.rotation = snap(velocity.rotation * DAMPING);
+            velocity.fov      = snap(velocity.fov      * DAMPING);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            updateSmoothControls();
+
+            const phi = THREE.MathUtils.degToRad(90 - lat);
+            const theta = THREE.MathUtils.degToRad(lon);
+
+            const x = 100 * Math.sin(phi) * Math.cos(theta);
+            const y = 100 * Math.cos(phi);
+            const z = 100 * Math.sin(phi) * Math.sin(theta);
+            camera.lookAt(x, y, z);
+            renderer.render(scene, camera);
+        }
+
+        // === 추가 기능 ===
+
+        // 스크린샷
+        function takeScreenshot() {
+            if (!renderer) return;
+            renderer.render(scene, camera);
+            const dataURL = renderer.domElement.toDataURL('image/png');
+            const link = document.createElement('a');
+            link.download = `panorama_${new Date().toISOString().slice(0,19).replace(/[:-]/g,'')}.png`;
+            link.href = dataURL;
+            link.click();
+            showToast('📸 스크린샷 저장됨');
+        }
+
+        // 풀스크린
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(() => {});
+                showToast('⛶ 풀스크린');
+            } else {
+                document.exitFullscreen();
+                showToast('⛶ 풀스크린 해제');
+            }
+        }
+
+        // 프레임 단위 이동
+        function stepFrame(direction) {
+            if (!video) return;
+            if (!video.paused) {
+                video.pause();
+                document.getElementById('play-btn').textContent = '▶';
+            }
+            const fps = 30;
+            video.currentTime = Math.max(0, Math.min(video.duration, video.currentTime + direction / fps));
+            showToast(direction > 0 ? '▶| 다음 프레임' : '|◀ 이전 프레임');
+        }
+
+        // 토스트
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.classList.add('active');
+            clearTimeout(t._timer);
+            t._timer = setTimeout(() => t.classList.remove('active'), 1500);
+        }
+
+        // === 북마크/이벤트 메모 시스템 ===
+        const TAG_CONFIG = {
+            goal:     { emoji: '⚽', label: '골',     color: '#ef4444' },
+            attack:   { emoji: '⚔️', label: '공격',   color: '#f97316' },
+            defense:  { emoji: '🛡️', label: '수비',   color: '#3b82f6' },
+            feedback: { emoji: '📋', label: '피드백', color: '#a855f7' },
+            memo:     { emoji: '📝', label: '메모',   color: '#22c55e' },
+        };
+        let bookmarks = []; // [{ id, time, tag, text }]
+        let bookmarkIdCounter = 0;
+        let currentTag = 'goal';
+        let activeFilters = new Set(['goal', 'attack', 'defense', 'feedback', 'memo']);
+
+        // 태그 버튼: 클릭 = 입력태그 선택, Ctrl+클릭 = 필터 토글
+        document.querySelectorAll('.tag-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const tag = btn.dataset.tag;
+                if (e.ctrlKey || e.metaKey) {
+                    // Ctrl+클릭: 필터 토글
+                    if (activeFilters.has(tag)) {
+                        if (activeFilters.size > 1) {
+                            activeFilters.delete(tag);
+                            btn.classList.remove('active');
+                        }
+                    } else {
+                        activeFilters.add(tag);
+                        btn.classList.add('active');
+                    }
+                    renderBookmarkList();
+                    renderProgressMarkers();
+                } else {
+                    // 일반 클릭: 해당 태그만 필터 (단독 선택)
+                    if (activeFilters.size === 1 && activeFilters.has(tag)) {
+                        // 이미 단독이면 전체 선택으로 복귀
+                        activeFilters = new Set(['goal', 'attack', 'defense', 'feedback', 'memo']);
+                        document.querySelectorAll('.tag-btn').forEach(b => b.classList.add('active'));
+                    } else {
+                        activeFilters = new Set([tag]);
+                        document.querySelectorAll('.tag-btn').forEach(b => b.classList.remove('active'));
+                        btn.classList.add('active');
+                    }
+                    currentTag = tag;
+                    renderBookmarkList();
+                    renderProgressMarkers();
+                }
+            });
+        });
+
+        // 추가 버튼
+        document.getElementById('bookmark-add-btn').addEventListener('click', addBookmark);
+
+        // Enter키로 추가
+        document.getElementById('bookmark-text').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                addBookmark();
+            }
+            e.stopPropagation(); // 뷰어 키보드 단축키 방지
+        });
+        // 입력란에서 다른 키 이벤트 전파 차단
+        document.getElementById('bookmark-text').addEventListener('keyup', (e) => e.stopPropagation());
+
+        function addBookmark() {
+            if (!video) return;
+            const input = document.getElementById('bookmark-text');
+            const text = input.value.trim();
+            const tag = currentTag;
+            const time = video.currentTime;
+
+            bookmarks.push({
+                id: ++bookmarkIdCounter,
+                time,
+                tag,
+                text: text || TAG_CONFIG[tag].label,
+            });
+            bookmarks.sort((a, b) => a.time - b.time);
+            input.value = '';
+            input.blur();
+            renderBookmarkList();
+            renderProgressMarkers();
+            autoSave();
+            showToast(`${TAG_CONFIG[tag].emoji} ${formatTime(time)} 이벤트 추가됨`);
+        }
+
+        function deleteBookmark(id) {
+            bookmarks = bookmarks.filter(b => b.id !== id);
+            renderBookmarkList();
+            renderProgressMarkers();
+            autoSave();
+        }
+
+        function seekToBookmark(time) {
+            if (!video) return;
+            video.currentTime = time;
+            showToast(`⏩ ${formatTime(time)}으로 이동`);
+        }
+
+        function editBookmark(id, el) {
+            const bm = bookmarks.find(b => b.id === id);
+            if (!bm) return;
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.value = bm.text;
+            input.style.cssText = 'flex:1; padding:4px 6px; border-radius:4px; border:1px solid #4a9eff; background:rgba(255,255,255,0.1); color:white; font-size:13px; outline:none;';
+            el.replaceWith(input);
+            input.focus();
+            input.select();
+
+            const commit = () => {
+                const newText = input.value.trim();
+                if (newText) bm.text = newText;
+                renderBookmarkList();
+                renderProgressMarkers();
+                autoSave();
+            };
+            input.addEventListener('blur', commit);
+            input.addEventListener('keydown', (e) => {
+                e.stopPropagation();
+                if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+                if (e.key === 'Escape') { input.value = bm.text; input.blur(); }
+            });
+            input.addEventListener('keyup', (e) => e.stopPropagation());
+        }
+
+        function renderBookmarkList() {
+            const list = document.getElementById('bookmark-list');
+            const filtered = bookmarks.filter(b => activeFilters.has(b.tag));
+            document.getElementById('bookmark-count').textContent = `${filtered.length}/${bookmarks.length}`;
+
+            if (filtered.length === 0) {
+                const msg = bookmarks.length === 0
+                    ? '이벤트가 없습니다<br>M키 또는 + 버튼으로 추가'
+                    : '선택된 카테고리에 이벤트가 없습니다';
+                list.innerHTML = `<div style="text-align:center; color:rgba(255,255,255,0.3); padding:20px; font-size:12px;">${msg}</div>`;
+                return;
+            }
+
+            list.innerHTML = filtered.map(b => {
+                const cfg = TAG_CONFIG[b.tag] || TAG_CONFIG.memo;
+                return `<div class="bookmark-item" data-id="${b.id}">
+                    <span class="bm-emoji">${cfg.emoji}</span>
+                    <span class="bm-time" onclick="seekToBookmark(${b.time})" style="color:${cfg.color}">${formatTime(b.time)}</span>
+                    <span class="bm-text" ondblclick="editBookmark(${b.id}, this)">${escapeHtml(b.text)}</span>
+                    <span class="bm-del" onclick="deleteBookmark(${b.id})">✕</span>
+                </div>`;
+            }).join('');
+        }
+
+        function escapeHtml(str) {
+            const d = document.createElement('div');
+            d.textContent = str;
+            return d.innerHTML;
+        }
+
+        function renderProgressMarkers() {
+            const container = document.getElementById('progress-markers');
+            if (!video || !video.duration) { container.innerHTML = ''; return; }
+            const dur = video.duration;
+
+            container.innerHTML = bookmarks.filter(b => activeFilters.has(b.tag)).map(b => {
+                const cfg = TAG_CONFIG[b.tag] || TAG_CONFIG.memo;
+                const pct = (b.time / dur) * 100;
+                return `<div class="progress-marker" style="left:${pct}%; color:${cfg.color};" onclick="seekToBookmark(${b.time})">
+                    <div class="marker-emoji">${cfg.emoji}</div>
+                    <div class="marker-bar" style="background:${cfg.color};"></div>
+                    <div class="marker-tooltip">${cfg.emoji} ${formatTime(b.time)} ${escapeHtml(b.text)}</div>
+                </div>`;
+            }).join('');
+        }
+
+        // === File System Access API 기반 로컬 저장 ===
+        let savedFileHandle = null; // 한번 선택하면 이후 자동 덮어쓰기
+
+        function buildJSON() {
+            return JSON.stringify({
+                video: currentVideoFileName,
+                created: new Date().toISOString(),
+                events: bookmarks.map(b => ({ time: b.time, tag: b.tag, text: b.text }))
+            }, null, 2);
+        }
+
+        async function saveBookmarks() {
+            if (bookmarks.length === 0) { showToast('저장할 이벤트가 없습니다'); return; }
+            const data = buildJSON();
+
+            // File System Access API 지원 시
+            if (window.showSaveFilePicker) {
+                try {
+                    if (!savedFileHandle) {
+                        savedFileHandle = await window.showSaveFilePicker({
+                            suggestedName: `events_${currentVideoFileName || 'video'}.json`,
+                            types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }],
+                        });
+                    }
+                    const writable = await savedFileHandle.createWritable();
+                    await writable.write(data);
+                    await writable.close();
+                    showToast(`💾 ${bookmarks.length}개 이벤트 저장됨 (${savedFileHandle.name})`);
+                } catch (err) {
+                    if (err.name === 'AbortError') return; // 사용자 취소
+                    // 권한 만료 등 → 핸들 초기화 후 재시도
+                    savedFileHandle = null;
+                    fallbackDownload(data);
+                }
+            } else {
+                fallbackDownload(data);
+            }
+        }
+
+        function fallbackDownload(data) {
+            const blob = new Blob([data], { type: 'application/json' });
+            const link = document.createElement('a');
+            link.download = `events_${currentVideoFileName || 'video'}.json`;
+            link.href = URL.createObjectURL(blob);
+            link.click();
+            URL.revokeObjectURL(link.href);
+            showToast(`💾 ${bookmarks.length}개 이벤트 저장됨 (다운로드)`);
+        }
+
+        // 자동 저장: 북마크 변경 시마다 (핸들이 있으면)
+        async function autoSave() {
+            if (!savedFileHandle || bookmarks.length === 0) return;
+            try {
+                const writable = await savedFileHandle.createWritable();
+                await writable.write(buildJSON());
+                await writable.close();
+            } catch (e) { /* 조용히 실패 */ }
+        }
+
+        document.getElementById('bookmark-save-btn').addEventListener('click', saveBookmarks);
+
+        // JSON 불러오기
+        async function loadBookmarks() {
+            if (window.showOpenFilePicker) {
+                try {
+                    const [handle] = await window.showOpenFilePicker({
+                        types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }],
+                    });
+                    savedFileHandle = handle; // 불러온 파일 핸들 유지 → 이후 저장 시 같은 파일에 덮어쓰기
+                    const file = await handle.getFile();
+                    const text = await file.text();
+                    loadBookmarksFromJSON(text);
+                } catch (err) {
+                    if (err.name !== 'AbortError') showToast('파일 열기 실패');
+                }
+            } else {
+                document.getElementById('bookmark-file-input').click();
+            }
+        }
+
+        document.getElementById('bookmark-load-btn').addEventListener('click', loadBookmarks);
+        document.getElementById('bookmark-file-input').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => loadBookmarksFromJSON(ev.target.result);
+            reader.readAsText(file);
+            e.target.value = '';
+        });
+
+        function loadBookmarksFromJSON(jsonStr) {
+            try {
+                const data = JSON.parse(jsonStr);
+                const events = data.events || data;
+                if (!Array.isArray(events)) throw new Error('Invalid format');
+                bookmarks = events.map(ev => ({
+                    id: ++bookmarkIdCounter,
+                    time: ev.time,
+                    tag: ev.tag || 'memo',
+                    text: ev.text || '',
+                }));
+                bookmarks.sort((a, b) => a.time - b.time);
+                renderBookmarkList();
+                renderProgressMarkers();
+                showToast(`📂 ${bookmarks.length}개 이벤트 불러옴`);
+            } catch (err) {
+                showToast('JSON 파싱 실패');
+            }
+        }
+
+        // 초기 렌더
+        renderBookmarkList();
+
+        // === 패널 토글 ===
+        function togglePanel(headerEl) {
+            const panel = headerEl.closest('.panel');
+            panel.classList.toggle('panel-collapsed');
+        }
+
+        // === 오디오 파형 분석 + 렌더링 ===
+        async function analyzeAudioWaveform() {
+            if (!video || !video.src) return;
+            try {
+                const resp = await fetch(video.src);
+                const arrayBuffer = await resp.arrayBuffer();
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+                audioCtx.close();
+
+                // 채널 데이터 → 다운샘플링
+                const rawData = audioBuffer.getChannelData(0);
+                const canvas = document.getElementById('audio-waveform');
+                const barCount = Math.min(canvas.offsetWidth || 600, 800);
+                const samplesPerBar = Math.floor(rawData.length / barCount);
+                const peaks = [];
+                for (let i = 0; i < barCount; i++) {
+                    let sum = 0;
+                    const start = i * samplesPerBar;
+                    for (let j = start; j < start + samplesPerBar && j < rawData.length; j++) {
+                        sum += Math.abs(rawData[j]);
+                    }
+                    peaks.push(sum / samplesPerBar);
+                }
+                // 정규화
+                const maxPeak = Math.max(...peaks, 0.001);
+                const normalizedPeaks = peaks.map(p => p / maxPeak);
+
+                drawWaveform(normalizedPeaks);
+                // 리사이즈 시 다시 그리기
+                window._waveformPeaks = normalizedPeaks;
+                showToast('🔊 오디오 파형 로드됨');
+            } catch (e) {
+                console.log('오디오 파형 분석 실패:', e.message);
+                showToast('🔇 오디오 트랙 없음 (파형 표시 불가)');
+            }
+        }
+
+        function drawWaveform(peaks) {
+            const canvas = document.getElementById('audio-waveform');
+            if (!canvas || !peaks || peaks.length === 0) return;
+            const rect = canvas.parentElement.getBoundingClientRect();
+            const dpr = window.devicePixelRatio || 1;
+            const w = rect.width;
+            const h = 28;
+            canvas.width = w * dpr;
+            canvas.height = h * dpr;
+            canvas.style.width = w + 'px';
+            canvas.style.height = h + 'px';
+
+            const ctx = canvas.getContext('2d');
+            ctx.scale(dpr, dpr);
+            ctx.clearRect(0, 0, w, h);
+
+            const barW = w / peaks.length;
+            for (let i = 0; i < peaks.length; i++) {
+                const barH = Math.max(1, peaks[i] * h * 0.9);
+                const x = i * barW;
+                ctx.fillStyle = `rgba(74, 158, 255, ${0.3 + peaks[i] * 0.5})`;
+                ctx.fillRect(x, h - barH, Math.max(barW - 0.5, 0.5), barH);
+            }
+        }
+
+        // 리사이즈 시 파형 다시 그리기
+        const _origOnResize = onResize;
+        onResize = function() {
+            _origOnResize();
+            if (window._waveformPeaks) drawWaveform(window._waveformPeaks);
+        };
+
+        // === 모바일 지원 ===
+
+        // 핀치 줌 → FOV 줌
+        (function setupPinchZoom() {
+            let lastPinchDist = 0;
+
+            container.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 2) {
+                    const dx = e.touches[0].clientX - e.touches[1].clientX;
+                    const dy = e.touches[0].clientY - e.touches[1].clientY;
+                    lastPinchDist = Math.sqrt(dx * dx + dy * dy);
+                }
+            }, { passive: true });
+
+            container.addEventListener('touchmove', (e) => {
+                if (e.touches.length === 2 && lastPinchDist > 0) {
+                    e.preventDefault();
+                    const dx = e.touches[0].clientX - e.touches[1].clientX;
+                    const dy = e.touches[0].clientY - e.touches[1].clientY;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    const delta = dist - lastPinchDist;
+
+                    // delta > 0: 벌리기 = 줌인 (FOV 감소), delta < 0: 모으기 = 줌아웃
+                    const sens = 0.15;
+                    camera.fov = clamp(camera.fov - delta * sens, 0.5, 90);
+                    camera.updateProjectionMatrix();
+                    document.getElementById('fov').value = Math.round(camera.fov);
+                    document.getElementById('fov-val').textContent = Math.round(camera.fov) + '°';
+                    updateDistortionUniforms(); // 핀치줌 시 fovRatio 갱신
+
+                    lastPinchDist = dist;
+                }
+            }, { passive: false });
+
+            container.addEventListener('touchend', () => {
+                lastPinchDist = 0;
+            }, { passive: true });
+        })();
+
+        // 모바일 탭 전환
+        function mobileTabSwitch(panelId) {
+            // 모든 패널 숨기기
+            ['bookmark-panel', 'mode-panel', 'controls', 'info'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.remove('mobile-show');
+            });
+            // 탭 활성화
+            document.querySelectorAll('.mobile-tab').forEach(t => t.classList.remove('active'));
+            const activeTab = document.querySelector(`.mobile-tab[data-panel="${panelId}"]`);
+            if (activeTab) activeTab.classList.add('active');
+            // 선택된 패널 표시
+            if (panelId !== 'none') {
+                const panel = document.getElementById(panelId);
+                if (panel) panel.classList.add('mobile-show');
+            }
+        }
+
+        // 재생바 터치 이벤트
+        (function setupProgressTouch() {
+            const bar = document.getElementById('progress-bar');
+            if (!bar) return;
+
+            function touchSeek(e) {
+                if (!video || !video.duration) return;
+                const wrapper = document.getElementById('progress-wrapper');
+                const rect = wrapper.getBoundingClientRect();
+                const touch = e.touches[0] || e.changedTouches[0];
+                const ratio = Math.max(0, Math.min(1, (touch.clientX - rect.left) / rect.width));
+                video.currentTime = ratio * video.duration;
+                const progress = document.getElementById('progress');
+                progress.value = ratio * 100;
+            }
+
+            bar.addEventListener('touchstart', (e) => {
+                if (e.target.closest('#progress-wrapper') || e.target.id === 'progress') {
+                    e.preventDefault();
+                    touchSeek(e);
+                    const onMove = (e) => { e.preventDefault(); touchSeek(e); };
+                    const onEnd = () => {
+                        bar.removeEventListener('touchmove', onMove);
+                        bar.removeEventListener('touchend', onEnd);
+                    };
+                    bar.addEventListener('touchmove', onMove, { passive: false });
+                    bar.addEventListener('touchend', onEnd);
+                }
+            }, { passive: false });
+        })();
+
+        // 모바일: 첫 터치 시 unmute (autoplay 정책 우회)
+        if (_isMobile) {
+            const unmuteOnce = () => {
+                if (video && video.muted) {
+                    video.muted = false;
+                    showToast('🔊 오디오 활성화');
+                }
+                document.removeEventListener('touchstart', unmuteOnce);
+            };
+            document.addEventListener('touchstart', unmuteOnce, { once: true });
+        }
+
+        // WebGL context lost 처리 (모바일 GPU 메모리 부족 시)
+        if (renderer) {
+            renderer.domElement.addEventListener('webglcontextlost', (e) => {
+                e.preventDefault();
+                showToast('⚠️ GPU 리소스 부족 — 새로고침 필요');
+            });
+        }
+    </script>
+</body>
+</html>
