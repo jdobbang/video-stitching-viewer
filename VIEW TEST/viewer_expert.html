@@ -50,14 +50,6 @@
             z-index: 200;
         }
 
-        #mode-panel {
-            top: 20px;
-            right: 20px;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
         #info {
             top: 20px;
             left: 20px;
@@ -183,167 +175,11 @@
         }
         #toast.active { opacity: 1; }
 
-        /* Bookmark panel */
-        #bookmark-panel {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            width: 320px;
-            max-height: calc(100vh - 40px);
-            display: none;
-            flex-direction: column;
-            gap: 10px;
-            z-index: 150;
-            overflow: hidden;
-        }
-        #bookmark-panel .tag-row {
-            display: flex;
-            gap: 4px;
-        }
-        #bookmark-panel .tag-btn {
-            flex: 1;
-            padding: 6px 4px;
-            border-radius: 6px;
-            border: 2px solid rgba(255,255,255,0.2);
-            background: rgba(255,255,255,0.05);
-            color: white;
-            cursor: pointer;
-            font-size: 16px;
-            text-align: center;
-            transition: all 0.2s;
-        }
-        #bookmark-panel .tag-btn:hover { background: rgba(255,255,255,0.15); }
-        #bookmark-panel .tag-btn.active { border-color: #4a9eff; background: rgba(74,158,255,0.2); }
-
-        #bookmark-input-row {
-            display: flex;
-            gap: 6px;
-        }
-        #bookmark-input-row input {
-            flex: 1;
-            padding: 8px 10px;
-            border-radius: 6px;
-            border: 1px solid rgba(255,255,255,0.2);
-            background: rgba(255,255,255,0.08);
-            color: white;
-            font-size: 13px;
-            outline: none;
-        }
-        #bookmark-input-row input:focus { border-color: #4a9eff; }
-        #bookmark-input-row input::placeholder { color: rgba(255,255,255,0.35); }
-
-        #bookmark-list {
-            flex: 1;
-            overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-            min-height: 0;
-        }
-        .bookmark-item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px 10px;
-            border-radius: 8px;
-            background: rgba(255,255,255,0.05);
-            font-size: 13px;
-            transition: background 0.15s;
-        }
-        .bookmark-item:hover { background: rgba(255,255,255,0.1); }
-        .bookmark-item .bm-emoji { font-size: 18px; flex-shrink: 0; }
-        .bookmark-item .bm-time {
-            color: #4a9eff;
-            cursor: pointer;
-            font-family: monospace;
-            font-weight: bold;
-            white-space: nowrap;
-            flex-shrink: 0;
-        }
-        .bookmark-item .bm-time:hover { text-decoration: underline; }
-        .bookmark-item .bm-text {
-            flex: 1;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-        .bookmark-item .bm-del {
-            cursor: pointer;
-            opacity: 0.3;
-            font-size: 14px;
-            flex-shrink: 0;
-            padding: 2px 4px;
-        }
-        .bookmark-item .bm-del:hover { opacity: 1; color: #ef4444; }
-
-        #bookmark-actions {
-            display: flex;
-            gap: 6px;
-        }
-
-        /* Progress bar marker overlay */
         #progress-wrapper {
             position: relative;
             flex: 1;
             overflow: visible;
         }
-        #progress-markers {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            pointer-events: none;
-            z-index: 1;
-            overflow: visible;
-        }
-        .progress-marker {
-            position: absolute;
-            bottom: 0;
-            transform: translateX(-50%);
-            pointer-events: auto;
-            cursor: pointer;
-            z-index: 2;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            transition: all 0.15s;
-        }
-        .progress-marker .marker-bar {
-            width: 3px;
-            height: 32px;
-            border-radius: 2px;
-            transition: all 0.15s;
-        }
-        .progress-marker .marker-emoji {
-            font-size: 12px;
-            line-height: 1;
-            margin-bottom: 1px;
-            transition: all 0.15s;
-        }
-        .progress-marker:hover .marker-bar {
-            width: 5px;
-            height: 38px;
-            box-shadow: 0 0 8px currentColor;
-        }
-        .progress-marker:hover .marker-emoji {
-            font-size: 16px;
-        }
-        .marker-tooltip {
-            position: absolute;
-            bottom: calc(100% + 4px);
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0,0,0,0.95);
-            color: white;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-size: 11px;
-            white-space: nowrap;
-            display: none;
-            pointer-events: none;
-        }
-        .progress-marker:hover .marker-tooltip { display: block; }
 
         /* Collapsible panel toggle */
         .panel-header {
@@ -457,35 +293,7 @@
             #mobile-controls.visible { display: flex; }
 
             /* Hide desktop panels by default, show via tab */
-            #info, #mode-panel, #controls { display: none !important; }
-
-            /* Bookmark panel: bottom sheet */
-            #bookmark-panel {
-                top: auto !important;
-                bottom: 50px;
-                left: 0 !important;
-                right: 0 !important;
-                width: auto !important;
-                max-width: 100vw;
-                max-height: 50vh;
-                border-radius: 16px 16px 0 0;
-                display: none;
-                z-index: 200;
-            }
-            #bookmark-panel.mobile-show { display: flex !important; }
-
-            /* Mode panel: bottom sheet */
-            #mode-panel.mobile-show {
-                display: flex !important;
-                position: fixed !important;
-                top: auto !important;
-                bottom: 50px !important;
-                left: 0 !important;
-                right: auto;
-                width: 100vw !important;
-                border-radius: 16px 16px 0 0;
-                z-index: 200;
-            }
+            #info, #controls { display: none !important; }
 
             /* Controls panel: bottom sheet */
             #controls.mobile-show {
@@ -537,15 +345,6 @@
             /* Bigger touch targets */
             .btn { padding: 10px 14px; font-size: 13px; min-height: 44px; }
             .btn-icon { width: 44px; height: 44px; }
-            .tag-btn { padding: 10px 6px !important; font-size: 20px !important; min-height: 44px; }
-            #bookmark-input-row input { font-size: 16px; padding: 10px 12px; }
-            .bookmark-item { padding: 10px 12px; font-size: 14px; }
-            .bookmark-item .bm-del { padding: 6px 8px; font-size: 18px; }
-            .bookmark-item .bm-emoji { font-size: 22px; }
-
-            /* Progress markers bigger for touch */
-            .progress-marker .marker-bar { width: 5px; height: 28px; }
-            .progress-marker .marker-emoji { font-size: 14px; }
 
             /* Toast above progress bar */
             #toast { bottom: 70px; font-size: 14px; }
@@ -568,12 +367,6 @@
     <div id="mobile-tab-bar">
         <button class="mobile-tab" data-panel="none" onclick="mobileTabSwitch('none')">
             <span class="tab-icon">👁️</span><span class="tab-label">뷰어</span>
-        </button>
-        <button class="mobile-tab" data-panel="bookmark-panel" onclick="mobileTabSwitch('bookmark-panel')">
-            <span class="tab-icon">📌</span><span class="tab-label">이벤트</span>
-        </button>
-        <button class="mobile-tab" data-panel="mode-panel" onclick="mobileTabSwitch('mode-panel')">
-            <span class="tab-icon">🎛️</span><span class="tab-label">설정</span>
         </button>
         <button class="mobile-tab" data-panel="controls" onclick="mobileTabSwitch('controls')">
             <span class="tab-icon">🎥</span><span class="tab-label">카메라</span>
@@ -619,48 +412,6 @@
         </div>
     </div>
 
-    <div class="panel auto-hide" id="mode-panel" style="display: none; right: 340px;">
-        <div class="panel-header" onclick="togglePanel(this)">
-            <span class="panel-title">🎛️ 설정</span>
-            <span class="panel-toggle">▼</span>
-        </div>
-        <div class="panel-body" style="display:flex; flex-direction:column; gap:8px;">
-            <div style="font-size: 11px; color: rgba(255,255,255,0.6);">투영 모드</div>
-            <button class="btn active" data-mode="cylinder">🔵 Cylinder</button>
-            <button class="btn" data-mode="sphere">🌐 Sphere</button>
-            <div style="font-size: 11px; color: rgba(255,255,255,0.6); margin-top: 4px;">도구</div>
-            <button class="btn" id="screenshot-btn">📸 스크린샷 (P)</button>
-            <button class="btn" id="fullscreen-btn">⛶ 풀스크린 (F11)</button>
-        </div>
-    </div>
-
-    <!-- 북마크/이벤트 패널 -->
-    <div class="panel" id="bookmark-panel">
-        <div class="panel-header" onclick="togglePanel(this)">
-            <span class="panel-title">📌 이벤트 메모 (<span id="bookmark-count">0</span>)</span>
-            <span class="panel-toggle">▼</span>
-        </div>
-        <div class="panel-body" style="display:flex; flex-direction:column; gap:10px;">
-            <div class="tag-row">
-                <div class="tag-btn active" data-tag="goal" title="골">⚽</div>
-                <div class="tag-btn active" data-tag="attack" title="공격">⚔️</div>
-                <div class="tag-btn active" data-tag="defense" title="수비">🛡️</div>
-                <div class="tag-btn active" data-tag="feedback" title="피드백">📋</div>
-                <div class="tag-btn active" data-tag="memo" title="메모">📝</div>
-            </div>
-            <div id="bookmark-input-row">
-                <input type="text" id="bookmark-text" placeholder="메모 입력... (M키로 빠른 추가)">
-                <button class="btn" id="bookmark-add-btn" style="width: auto; padding: 8px 14px;">+ 추가</button>
-            </div>
-            <div id="bookmark-list"></div>
-            <div id="bookmark-actions">
-                <button class="btn" id="bookmark-save-btn" style="flex:1;">💾 저장</button>
-                <button class="btn" id="bookmark-load-btn" style="flex:1;">📂 불러오기</button>
-                <input type="file" id="bookmark-file-input" accept=".json" style="display:none;">
-            </div>
-        </div>
-    </div>
-
     <!-- 하단 풀와이드 재생바 -->
     <div id="progress-bar">
         <button class="btn btn-icon" id="play-btn" style="flex-shrink:0;">▶</button>
@@ -668,7 +419,6 @@
         <div id="progress-wrapper">
             <canvas id="audio-waveform"></canvas>
             <input type="range" id="progress" min="0" max="100" value="0" style="width:100%;">
-            <div id="progress-markers"></div>
         </div>
         <span class="value" id="duration" style="min-width:50px;">0:00</span>
         <select id="speed" style="background: #222; border: 1px solid rgba(255,255,255,0.2); color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; flex-shrink:0;">
@@ -709,7 +459,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
         let scene, camera, renderer, mesh, videoTexture, video;
-        let currentMode = 'cylinder';
         let isUserInteracting = false;
         let onPointerDownMouseX = 0, onPointerDownMouseY = 0;
         let lon = 0, onPointerDownLon = 0;
@@ -721,6 +470,13 @@
         let IMG_HEIGHT = 1109;
         let FOCAL_LENGTH = 1920;
         let TOTAL_FOV_RAD = IMG_WIDTH / FOCAL_LENGTH;
+
+        // --- View bounds (set in createGeometry) ---
+        // 파노라마 밖 패딩이 보이지 않도록 lon/lat/fov를 제한하기 위함.
+        // VIEW_PAD_H/V_RAD 만큼은 약간의 패딩 노출 허용.
+        let panoH_rad = 0, panoV_rad = 0;
+        const VIEW_PAD_H_RAD = 0.0;   // 좌우 허용 패딩 (음수면 호 안쪽으로 당김)
+        const VIEW_PAD_V_RAD = -0.035; // 상하 허용 패딩 — 스티칭된 상/하단 검은 여백 숨김 (~-2°)
 
         // --- Smooth keyboard control system ---
         const keysPressed = new Set();
@@ -755,33 +511,16 @@
             dropZone.classList.remove('dragover');
         });
 
-        let currentVideoFileName = '';
-        let pendingBookmarkData = null;
-
         dropZone.addEventListener('drop', (e) => {
             e.preventDefault();
             dropZone.classList.remove('dragover');
             const files = Array.from(e.dataTransfer.files);
-            let videoFile = null, jsonFile = null;
             for (const file of files) {
                 if (file.type.startsWith('video/') || /\.(mp4|webm|mov)$/i.test(file.name)) {
-                    videoFile = file;
-                } else if (file.name.endsWith('.json')) {
-                    jsonFile = file;
+                    loadVideo(file);
+                    return;
                 }
             }
-            if (jsonFile) {
-                const reader = new FileReader();
-                reader.onload = (ev) => {
-                    if (video) {
-                        loadBookmarksFromJSON(ev.target.result);
-                    } else {
-                        pendingBookmarkData = ev.target.result;
-                    }
-                };
-                reader.readAsText(jsonFile);
-            }
-            if (videoFile) loadVideo(videoFile);
         });
 
         fileInput.addEventListener('change', (e) => {
@@ -790,7 +529,6 @@
         });
 
         function loadVideo(file) {
-            currentVideoFileName = file.name.replace(/\.[^.]+$/, '');
             filePanel.style.display = 'none';
             document.getElementById('loading').style.display = 'block';
 
@@ -827,23 +565,12 @@
 
         function showControls() {
             document.getElementById('progress-bar').style.display = 'flex';
-            document.getElementById('bookmark-panel').style.display = 'flex';
             if (_isMobile) {
-                // 모바일: 탭바로 전환, 초기에는 패널 숨김
                 document.getElementById('mobile-controls').classList.add('visible');
-                document.getElementById('bookmark-panel').style.display = 'none';
                 mobileTabSwitch('none');
             } else {
                 document.getElementById('info').style.display = 'block';
-                document.getElementById('mode-panel').style.display = 'flex';
                 document.getElementById('controls').style.display = 'flex';
-                document.getElementById('bookmark-panel').style.display = 'flex';
-            }
-            if (pendingBookmarkData) {
-                setTimeout(() => {
-                    loadBookmarksFromJSON(pendingBookmarkData);
-                    pendingBookmarkData = null;
-                }, 300);
             }
         }
 
@@ -869,7 +596,7 @@
             videoTexture.minFilter = THREE.LinearFilter;
             videoTexture.magFilter = THREE.LinearFilter;
 
-            createGeometry('cylinder');
+            createGeometry();
 
             // Event listeners
             container.addEventListener('pointerdown', onPointerDown);
@@ -923,9 +650,11 @@
 
             // View controls
             document.getElementById('fov').addEventListener('input', (e) => {
-                camera.fov = parseFloat(e.target.value);
+                const val = clamp(parseFloat(e.target.value), 0.5, getMaxFovDeg());
+                camera.fov = val;
                 camera.updateProjectionMatrix();
-                document.getElementById('fov-val').textContent = e.target.value + '°';
+                e.target.value = val;
+                document.getElementById('fov-val').textContent = Math.round(val) + '°';
             });
 
             document.getElementById('reset').addEventListener('click', resetView);
@@ -1005,19 +734,6 @@
                     stepFrame(1);
                     return;
                 }
-                // M: 메모 추가 (입력란 포커스)
-                if (e.code === 'KeyM') {
-                    e.preventDefault();
-                    const input = document.getElementById('bookmark-text');
-                    if (document.activeElement === input) return;
-                    if (!video.paused) {
-                        video.pause();
-                        document.getElementById('play-btn').textContent = '▶';
-                    }
-                    input.focus();
-                    showToast('📌 메모 입력... (Enter로 추가)');
-                    return;
-                }
 
                 const mapped = codeMap[e.code];
                 if (mapped) {
@@ -1049,20 +765,6 @@
                 window.addEventListener('mouseup', onUp);
             });
 
-            // Mode buttons
-            document.querySelectorAll('[data-mode]').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    document.querySelectorAll('[data-mode]').forEach(b => b.classList.remove('active'));
-                    btn.classList.add('active');
-                    currentMode = btn.dataset.mode;
-                    createGeometry(currentMode);
-                });
-            });
-
-            // 스크린샷 / 풀스크린 버튼
-            document.getElementById('screenshot-btn').addEventListener('click', takeScreenshot);
-            document.getElementById('fullscreen-btn').addEventListener('click', toggleFullscreen);
-
             // 오디오 파형 분석
             analyzeAudioWaveform();
 
@@ -1077,14 +779,15 @@
         function resetView() {
             lon = 0; lat = 0;
             videoRotation = 0;
-            camera.fov = 50;
+            const fov = Math.min(50, getMaxFovDeg());
+            camera.fov = fov;
             camera.updateProjectionMatrix();
-            document.getElementById('fov').value = 50;
-            document.getElementById('fov-val').textContent = '50°';
-            createGeometry(currentMode);
+            document.getElementById('fov').value = Math.round(fov);
+            document.getElementById('fov-val').textContent = Math.round(fov) + '°';
+            createGeometry();
         }
 
-        function createGeometry(mode) {
+        function createGeometry() {
             if (!videoTexture) return;
 
             if (mesh) {
@@ -1093,35 +796,16 @@
                 mesh.material.dispose();
             }
 
-            const curve = 1.0;
-            const distance = 1.0;
-            const radius = 50 * distance;
+            const radius = 50;
+            const arcAngle = TOTAL_FOV_RAD;
+            const cylinderHeight = radius * arcAngle / (IMG_WIDTH / IMG_HEIGHT);
 
-            let geometry;
-
-            if (mode === 'cylinder') {
-                const arcAngle = TOTAL_FOV_RAD * curve;
-                const cylinderHeight = radius * arcAngle / (IMG_WIDTH / IMG_HEIGHT);
-
-                geometry = new THREE.CylinderGeometry(
-                    radius, radius, cylinderHeight,
-                    64, 1, true,
-                    -arcAngle / 2, arcAngle
-                );
-                geometry.scale(-1, 1, 1);
-
-            } else if (mode === 'sphere') {
-                const phiLength = TOTAL_FOV_RAD * curve;
-                const thetaLength = phiLength / (IMG_WIDTH / IMG_HEIGHT);
-
-                geometry = new THREE.SphereGeometry(
-                    radius,
-                    64, 32,
-                    Math.PI / 2 - phiLength / 2, phiLength,
-                    Math.PI / 2 - thetaLength / 2, thetaLength
-                );
-                geometry.scale(-1, 1, 1);
-            }
+            const geometry = new THREE.CylinderGeometry(
+                radius, radius, cylinderHeight,
+                64, 1, true,
+                -arcAngle / 2, arcAngle
+            );
+            geometry.scale(-1, 1, 1);
 
             const material = new THREE.MeshBasicMaterial({
                 map: videoTexture,
@@ -1129,13 +813,61 @@
             });
 
             mesh = new THREE.Mesh(geometry, material);
-
-            if (mode === 'cylinder' || mode === 'sphere') {
-                mesh.rotation.y = Math.PI / 2;
-            }
+            mesh.rotation.y = Math.PI / 2;
             mesh.rotation.z = THREE.MathUtils.degToRad(videoRotation);
 
             scene.add(mesh);
+
+            // 뷰 한계 각도 저장
+            panoH_rad = arcAngle;
+            panoV_rad = 2 * Math.atan(cylinderHeight / 2 / radius);
+
+            // FOV 슬라이더 최대값 + 카메라 현재 fov 클램프
+            const maxFov = getMaxFovDeg();
+            const fovSlider = document.getElementById('fov');
+            if (fovSlider) fovSlider.max = Math.round(maxFov);
+            if (camera && camera.fov > maxFov) {
+                camera.fov = maxFov;
+                camera.updateProjectionMatrix();
+                if (fovSlider) fovSlider.value = Math.round(maxFov);
+                const fovValEl = document.getElementById('fov-val');
+                if (fovValEl) fovValEl.textContent = Math.round(maxFov) + '\u00B0';
+            }
+        }
+
+        function getMaxFovDeg() {
+            if (!panoV_rad) return 90;
+            return Math.min(90, THREE.MathUtils.radToDeg(panoV_rad) + 2 * THREE.MathUtils.radToDeg(VIEW_PAD_V_RAD));
+        }
+
+        function clampViewState() {
+            if (!panoH_rad || !panoV_rad || !camera) return;
+
+            // FOV 클램프 (최초 로드/리사이즈 포함 매 프레임 안전 보정)
+            const maxFov = getMaxFovDeg();
+            if (camera.fov > maxFov) {
+                camera.fov = maxFov;
+                camera.updateProjectionMatrix();
+                velocity.fov = 0;
+                const fovEl = document.getElementById('fov');
+                if (fovEl) fovEl.value = Math.round(maxFov);
+                const fovValEl = document.getElementById('fov-val');
+                if (fovValEl) fovValEl.textContent = Math.round(maxFov) + '\u00B0';
+            }
+
+            const vFovRad = THREE.MathUtils.degToRad(camera.fov);
+            const aspect = camera.aspect || (window.innerWidth / window.innerHeight);
+            const hFovRad = 2 * Math.atan(Math.tan(vFovRad / 2) * aspect);
+
+            const maxLonRad = Math.max(0, (panoH_rad - hFovRad) / 2) + VIEW_PAD_H_RAD;
+            const maxLatRad = Math.max(0, (panoV_rad - vFovRad) / 2) + VIEW_PAD_V_RAD;
+            const maxLonDeg = THREE.MathUtils.radToDeg(maxLonRad);
+            const maxLatDeg = THREE.MathUtils.radToDeg(maxLatRad);
+
+            if (lon >  maxLonDeg) { lon =  maxLonDeg; velocity.lon = 0; }
+            if (lon < -maxLonDeg) { lon = -maxLonDeg; velocity.lon = 0; }
+            if (lat >  maxLatDeg) { lat =  maxLatDeg; velocity.lat = 0; }
+            if (lat < -maxLatDeg) { lat = -maxLatDeg; velocity.lat = 0; }
         }
 
         let prevPointerX = 0, prevPointerY = 0;
@@ -1144,8 +876,8 @@
 
         function isClickOnUI(event) {
             const el = event.target;
-            if (el.closest('#controls') || el.closest('#mode-panel') ||
-                el.closest('#progress-bar') || el.closest('#info') || el.closest('#file-panel') || el.closest('#bookmark-panel') ||
+            if (el.closest('#controls') ||
+                el.closest('#progress-bar') || el.closest('#info') || el.closest('#file-panel') ||
                 el.closest('#mobile-tab-bar') || el.closest('#mobile-controls') ||
                 el.tagName === 'INPUT' || el.tagName === 'SELECT' || el.tagName === 'BUTTON') {
                 return true;
@@ -1286,11 +1018,14 @@
             }
 
             if (velocity.fov !== 0) {
-                camera.fov = clamp(camera.fov + velocity.fov, 0.5, 90);
+                camera.fov = clamp(camera.fov + velocity.fov, 0.5, getMaxFovDeg());
                 camera.updateProjectionMatrix();
                 document.getElementById('fov').value = Math.round(camera.fov);
                 document.getElementById('fov-val').textContent = Math.round(camera.fov) + '\u00B0';
             }
+
+            // 파노라마 밖을 보지 않도록 시점 제한
+            clampViewState();
 
             // Damping
             velocity.lon      = snap(velocity.lon      * DAMPING);
@@ -1358,289 +1093,6 @@
             clearTimeout(t._timer);
             t._timer = setTimeout(() => t.classList.remove('active'), 1500);
         }
-
-        // === 북마크/이벤트 메모 시스템 ===
-        const TAG_CONFIG = {
-            goal:     { emoji: '⚽', label: '골',     color: '#ef4444' },
-            attack:   { emoji: '⚔️', label: '공격',   color: '#f97316' },
-            defense:  { emoji: '🛡️', label: '수비',   color: '#3b82f6' },
-            feedback: { emoji: '📋', label: '피드백', color: '#a855f7' },
-            memo:     { emoji: '📝', label: '메모',   color: '#22c55e' },
-        };
-        let bookmarks = []; // [{ id, time, tag, text }]
-        let bookmarkIdCounter = 0;
-        let currentTag = 'goal';
-        let activeFilters = new Set(['goal', 'attack', 'defense', 'feedback', 'memo']);
-
-        // 태그 버튼: 클릭 = 입력태그 선택, Ctrl+클릭 = 필터 토글
-        document.querySelectorAll('.tag-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const tag = btn.dataset.tag;
-                if (e.ctrlKey || e.metaKey) {
-                    // Ctrl+클릭: 필터 토글
-                    if (activeFilters.has(tag)) {
-                        if (activeFilters.size > 1) {
-                            activeFilters.delete(tag);
-                            btn.classList.remove('active');
-                        }
-                    } else {
-                        activeFilters.add(tag);
-                        btn.classList.add('active');
-                    }
-                    renderBookmarkList();
-                    renderProgressMarkers();
-                } else {
-                    // 일반 클릭: 해당 태그만 필터 (단독 선택)
-                    if (activeFilters.size === 1 && activeFilters.has(tag)) {
-                        // 이미 단독이면 전체 선택으로 복귀
-                        activeFilters = new Set(['goal', 'attack', 'defense', 'feedback', 'memo']);
-                        document.querySelectorAll('.tag-btn').forEach(b => b.classList.add('active'));
-                    } else {
-                        activeFilters = new Set([tag]);
-                        document.querySelectorAll('.tag-btn').forEach(b => b.classList.remove('active'));
-                        btn.classList.add('active');
-                    }
-                    currentTag = tag;
-                    renderBookmarkList();
-                    renderProgressMarkers();
-                }
-            });
-        });
-
-        // 추가 버튼
-        document.getElementById('bookmark-add-btn').addEventListener('click', addBookmark);
-
-        // Enter키로 추가
-        document.getElementById('bookmark-text').addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                addBookmark();
-            }
-            e.stopPropagation(); // 뷰어 키보드 단축키 방지
-        });
-        // 입력란에서 다른 키 이벤트 전파 차단
-        document.getElementById('bookmark-text').addEventListener('keyup', (e) => e.stopPropagation());
-
-        function addBookmark() {
-            if (!video) return;
-            const input = document.getElementById('bookmark-text');
-            const text = input.value.trim();
-            const tag = currentTag;
-            const time = video.currentTime;
-
-            bookmarks.push({
-                id: ++bookmarkIdCounter,
-                time,
-                tag,
-                text: text || TAG_CONFIG[tag].label,
-            });
-            bookmarks.sort((a, b) => a.time - b.time);
-            input.value = '';
-            input.blur();
-            renderBookmarkList();
-            renderProgressMarkers();
-            autoSave();
-            showToast(`${TAG_CONFIG[tag].emoji} ${formatTime(time)} 이벤트 추가됨`);
-        }
-
-        function deleteBookmark(id) {
-            bookmarks = bookmarks.filter(b => b.id !== id);
-            renderBookmarkList();
-            renderProgressMarkers();
-            autoSave();
-        }
-
-        function seekToBookmark(time) {
-            if (!video) return;
-            video.currentTime = time;
-            showToast(`⏩ ${formatTime(time)}으로 이동`);
-        }
-
-        function editBookmark(id, el) {
-            const bm = bookmarks.find(b => b.id === id);
-            if (!bm) return;
-            const input = document.createElement('input');
-            input.type = 'text';
-            input.value = bm.text;
-            input.style.cssText = 'flex:1; padding:4px 6px; border-radius:4px; border:1px solid #4a9eff; background:rgba(255,255,255,0.1); color:white; font-size:13px; outline:none;';
-            el.replaceWith(input);
-            input.focus();
-            input.select();
-
-            const commit = () => {
-                const newText = input.value.trim();
-                if (newText) bm.text = newText;
-                renderBookmarkList();
-                renderProgressMarkers();
-                autoSave();
-            };
-            input.addEventListener('blur', commit);
-            input.addEventListener('keydown', (e) => {
-                e.stopPropagation();
-                if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
-                if (e.key === 'Escape') { input.value = bm.text; input.blur(); }
-            });
-            input.addEventListener('keyup', (e) => e.stopPropagation());
-        }
-
-        function renderBookmarkList() {
-            const list = document.getElementById('bookmark-list');
-            const filtered = bookmarks.filter(b => activeFilters.has(b.tag));
-            document.getElementById('bookmark-count').textContent = `${filtered.length}/${bookmarks.length}`;
-
-            if (filtered.length === 0) {
-                const msg = bookmarks.length === 0
-                    ? '이벤트가 없습니다<br>M키 또는 + 버튼으로 추가'
-                    : '선택된 카테고리에 이벤트가 없습니다';
-                list.innerHTML = `<div style="text-align:center; color:rgba(255,255,255,0.3); padding:20px; font-size:12px;">${msg}</div>`;
-                return;
-            }
-
-            list.innerHTML = filtered.map(b => {
-                const cfg = TAG_CONFIG[b.tag] || TAG_CONFIG.memo;
-                return `<div class="bookmark-item" data-id="${b.id}">
-                    <span class="bm-emoji">${cfg.emoji}</span>
-                    <span class="bm-time" onclick="seekToBookmark(${b.time})" style="color:${cfg.color}">${formatTime(b.time)}</span>
-                    <span class="bm-text" ondblclick="editBookmark(${b.id}, this)">${escapeHtml(b.text)}</span>
-                    <span class="bm-del" onclick="deleteBookmark(${b.id})">✕</span>
-                </div>`;
-            }).join('');
-        }
-
-        function escapeHtml(str) {
-            const d = document.createElement('div');
-            d.textContent = str;
-            return d.innerHTML;
-        }
-
-        function renderProgressMarkers() {
-            const container = document.getElementById('progress-markers');
-            if (!video || !video.duration) { container.innerHTML = ''; return; }
-            const dur = video.duration;
-
-            container.innerHTML = bookmarks.filter(b => activeFilters.has(b.tag)).map(b => {
-                const cfg = TAG_CONFIG[b.tag] || TAG_CONFIG.memo;
-                const pct = (b.time / dur) * 100;
-                return `<div class="progress-marker" style="left:${pct}%; color:${cfg.color};" onclick="seekToBookmark(${b.time})">
-                    <div class="marker-emoji">${cfg.emoji}</div>
-                    <div class="marker-bar" style="background:${cfg.color};"></div>
-                    <div class="marker-tooltip">${cfg.emoji} ${formatTime(b.time)} ${escapeHtml(b.text)}</div>
-                </div>`;
-            }).join('');
-        }
-
-        // === File System Access API 기반 로컬 저장 ===
-        let savedFileHandle = null; // 한번 선택하면 이후 자동 덮어쓰기
-
-        function buildJSON() {
-            return JSON.stringify({
-                video: currentVideoFileName,
-                created: new Date().toISOString(),
-                events: bookmarks.map(b => ({ time: b.time, tag: b.tag, text: b.text }))
-            }, null, 2);
-        }
-
-        async function saveBookmarks() {
-            if (bookmarks.length === 0) { showToast('저장할 이벤트가 없습니다'); return; }
-            const data = buildJSON();
-
-            // File System Access API 지원 시
-            if (window.showSaveFilePicker) {
-                try {
-                    if (!savedFileHandle) {
-                        savedFileHandle = await window.showSaveFilePicker({
-                            suggestedName: `events_${currentVideoFileName || 'video'}.json`,
-                            types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }],
-                        });
-                    }
-                    const writable = await savedFileHandle.createWritable();
-                    await writable.write(data);
-                    await writable.close();
-                    showToast(`💾 ${bookmarks.length}개 이벤트 저장됨 (${savedFileHandle.name})`);
-                } catch (err) {
-                    if (err.name === 'AbortError') return; // 사용자 취소
-                    // 권한 만료 등 → 핸들 초기화 후 재시도
-                    savedFileHandle = null;
-                    fallbackDownload(data);
-                }
-            } else {
-                fallbackDownload(data);
-            }
-        }
-
-        function fallbackDownload(data) {
-            const blob = new Blob([data], { type: 'application/json' });
-            const link = document.createElement('a');
-            link.download = `events_${currentVideoFileName || 'video'}.json`;
-            link.href = URL.createObjectURL(blob);
-            link.click();
-            URL.revokeObjectURL(link.href);
-            showToast(`💾 ${bookmarks.length}개 이벤트 저장됨 (다운로드)`);
-        }
-
-        // 자동 저장: 북마크 변경 시마다 (핸들이 있으면)
-        async function autoSave() {
-            if (!savedFileHandle || bookmarks.length === 0) return;
-            try {
-                const writable = await savedFileHandle.createWritable();
-                await writable.write(buildJSON());
-                await writable.close();
-            } catch (e) { /* 조용히 실패 */ }
-        }
-
-        document.getElementById('bookmark-save-btn').addEventListener('click', saveBookmarks);
-
-        // JSON 불러오기
-        async function loadBookmarks() {
-            if (window.showOpenFilePicker) {
-                try {
-                    const [handle] = await window.showOpenFilePicker({
-                        types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }],
-                    });
-                    savedFileHandle = handle; // 불러온 파일 핸들 유지 → 이후 저장 시 같은 파일에 덮어쓰기
-                    const file = await handle.getFile();
-                    const text = await file.text();
-                    loadBookmarksFromJSON(text);
-                } catch (err) {
-                    if (err.name !== 'AbortError') showToast('파일 열기 실패');
-                }
-            } else {
-                document.getElementById('bookmark-file-input').click();
-            }
-        }
-
-        document.getElementById('bookmark-load-btn').addEventListener('click', loadBookmarks);
-        document.getElementById('bookmark-file-input').addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = (ev) => loadBookmarksFromJSON(ev.target.result);
-            reader.readAsText(file);
-            e.target.value = '';
-        });
-
-        function loadBookmarksFromJSON(jsonStr) {
-            try {
-                const data = JSON.parse(jsonStr);
-                const events = data.events || data;
-                if (!Array.isArray(events)) throw new Error('Invalid format');
-                bookmarks = events.map(ev => ({
-                    id: ++bookmarkIdCounter,
-                    time: ev.time,
-                    tag: ev.tag || 'memo',
-                    text: ev.text || '',
-                }));
-                bookmarks.sort((a, b) => a.time - b.time);
-                renderBookmarkList();
-                renderProgressMarkers();
-                showToast(`📂 ${bookmarks.length}개 이벤트 불러옴`);
-            } catch (err) {
-                showToast('JSON 파싱 실패');
-            }
-        }
-
-        // 초기 렌더
-        renderBookmarkList();
 
         // === 패널 토글 ===
         function togglePanel(headerEl) {
@@ -1742,7 +1194,7 @@
 
                     // delta > 0: 벌리기 = 줌인 (FOV 감소), delta < 0: 모으기 = 줌아웃
                     const sens = 0.15;
-                    camera.fov = clamp(camera.fov - delta * sens, 0.5, 90);
+                    camera.fov = clamp(camera.fov - delta * sens, 0.5, getMaxFovDeg());
                     camera.updateProjectionMatrix();
                     document.getElementById('fov').value = Math.round(camera.fov);
                     document.getElementById('fov-val').textContent = Math.round(camera.fov) + '°';
@@ -1759,7 +1211,7 @@
         // 모바일 탭 전환
         function mobileTabSwitch(panelId) {
             // 모든 패널 숨기기
-            ['bookmark-panel', 'mode-panel', 'controls', 'info'].forEach(id => {
+            ['controls', 'info'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.classList.remove('mobile-show');
             });
