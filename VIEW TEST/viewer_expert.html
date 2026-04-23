@@ -91,7 +91,9 @@
         }
 
         #progress-wrapper {
+            position: relative;
             flex: 1;
+            overflow: visible;
         }
 
         .value {
@@ -174,12 +176,6 @@
             z-index: 200;
         }
         #toast.active { opacity: 1; }
-
-        #progress-wrapper {
-            position: relative;
-            flex: 1;
-            overflow: visible;
-        }
 
         /* Collapsible panel toggle */
         .panel-header {
@@ -365,22 +361,22 @@
 
     <!-- Mobile tab bar -->
     <div id="mobile-tab-bar">
-        <button class="mobile-tab" data-panel="none" onclick="mobileTabSwitch('none')">
+        <button class="mobile-tab" data-panel="none">
             <span class="tab-icon">👁️</span><span class="tab-label">뷰어</span>
         </button>
-        <button class="mobile-tab" data-panel="controls" onclick="mobileTabSwitch('controls')">
+        <button class="mobile-tab" data-panel="controls">
             <span class="tab-icon">🎥</span><span class="tab-label">카메라</span>
         </button>
-        <button class="mobile-tab" data-panel="info" onclick="mobileTabSwitch('info')">
+        <button class="mobile-tab" data-panel="info">
             <span class="tab-icon">ℹ️</span><span class="tab-label">도움말</span>
         </button>
     </div>
 
     <!-- Mobile floating controls (frame step, screenshot) -->
     <div id="mobile-controls">
-        <button class="mobile-ctrl-btn" onclick="stepFrame(-1)">⏮</button>
-        <button class="mobile-ctrl-btn" onclick="takeScreenshot()">📸</button>
-        <button class="mobile-ctrl-btn" onclick="stepFrame(1)">⏭</button>
+        <button class="mobile-ctrl-btn" data-action="prev-frame">⏮</button>
+        <button class="mobile-ctrl-btn" data-action="screenshot">📸</button>
+        <button class="mobile-ctrl-btn" data-action="next-frame">⏭</button>
     </div>
 
     <div id="loading">비디오 로딩중...</div>
@@ -400,7 +396,7 @@
     </div>
 
     <div class="panel auto-hide" id="info" style="display: none;">
-        <div class="panel-header" onclick="togglePanel(this)">
+        <div class="panel-header">
             <span class="panel-title">ℹ️ 조작법</span>
             <span class="panel-toggle">▼</span>
         </div>
@@ -431,7 +427,7 @@
     </div>
 
     <div class="panel auto-hide" id="controls" style="display: none;">
-        <div class="panel-header" onclick="togglePanel(this)">
+        <div class="panel-header">
             <span class="panel-title">🎥 카메라</span>
             <span class="panel-toggle">▼</span>
         </div>
@@ -494,6 +490,17 @@
         const MAX_VEL = { pan: 0.6, rotation: 0.08, fov: 0.35 };
         const VEL_THRESHOLD = 0.001;
 
+        // --- Input sensitivity ---
+        const FOV_REF = 50;              // FOV 스케일 기준값
+        const DRAG_POS_SENS = 0.08;      // 마우스 드래그 lon/lat 이동 감도
+        const DRAG_VEL_SENS = 0.04;      // 마우스 드래그 해제 시 관성 감도
+        const WHEEL_ZOOM_SENS = 0.008;   // 휠 줌 감도
+
+        // --- Audio waveform ---
+        const WAVEFORM_BAR_HEIGHT = 0.9; // 파형 막대 최대 높이 비율
+        const WAVEFORM_ALPHA_BASE = 0.3; // 파형 색 투명도 베이스
+        const WAVEFORM_ALPHA_PEAK = 0.5; // 파형 색 투명도 진폭
+
         const _isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || window.innerWidth <= 768;
 
         // 모바일 UI 텍스트 변경
@@ -506,6 +513,25 @@
         const filePanel = document.getElementById('file-panel');
         const dropZone = document.getElementById('drop-zone');
         const fileInput = document.getElementById('file-input');
+
+        // --- DOM 캐시 (자주 참조되는 요소) ---
+        const UI = {
+            playBtn: document.getElementById('play-btn'),
+            progress: document.getElementById('progress'),
+            progressBar: document.getElementById('progress-bar'),
+            progressWrapper: document.getElementById('progress-wrapper'),
+            fov: document.getElementById('fov'),
+            fovVal: document.getElementById('fov-val'),
+            loading: document.getElementById('loading'),
+            currentTime: document.getElementById('current-time'),
+            duration: document.getElementById('duration'),
+            speed: document.getElementById('speed'),
+            mobileControls: document.getElementById('mobile-controls'),
+            info: document.getElementById('info'),
+            controls: document.getElementById('controls'),
+            toast: document.getElementById('toast'),
+            audioWaveform: document.getElementById('audio-waveform'),
+        };
 
         // File handling
         dropZone.addEventListener('click', () => fileInput.click());
@@ -538,7 +564,7 @@
 
         function loadVideo(file) {
             filePanel.style.display = 'none';
-            document.getElementById('loading').style.display = 'block';
+            UI.loading.style.display = 'block';
 
             video = document.createElement('video');
             video.src = URL.createObjectURL(file);
@@ -553,13 +579,13 @@
                 FOCAL_LENGTH = IMG_WIDTH * 0.67;
                 TOTAL_FOV_RAD = IMG_WIDTH / FOCAL_LENGTH;
 
-                document.getElementById('loading').style.display = 'none';
+                UI.loading.style.display = 'none';
                 initThree();
                 showControls();
             });
 
             video.addEventListener('error', () => {
-                const loading = document.getElementById('loading');
+                const loading = UI.loading;
                 const err = video.error;
                 if (err && err.code === MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED) {
                     loading.innerHTML = '⚠️ 코덱 미지원<br><span style="font-size:13px; color:rgba(255,255,255,0.6);">브라우저는 H.264 코덱만 재생 가능합니다.<br>OpenCV mp4v 파일은 재생 불가 — <b>.web.mp4</b> 파일을 사용하세요.</span>';
@@ -572,13 +598,13 @@
         }
 
         function showControls() {
-            document.getElementById('progress-bar').style.display = 'flex';
+            UI.progressBar.style.display = 'flex';
             if (_isMobile) {
-                document.getElementById('mobile-controls').classList.add('visible');
+                UI.mobileControls.classList.add('visible');
                 mobileTabSwitch('none');
             } else {
-                document.getElementById('info').style.display = 'block';
-                document.getElementById('controls').style.display = 'flex';
+                UI.info.style.display = 'block';
+                UI.controls.style.display = 'flex';
             }
         }
 
@@ -614,40 +640,48 @@
             window.addEventListener('resize', onResize);
 
             // Video controls
-            const playBtn = document.getElementById('play-btn');
-            const progress = document.getElementById('progress');
-            const speedSelect = document.getElementById('speed');
+            const playBtn = UI.playBtn;
+            const progress = UI.progress;
+            const speedSelect = UI.speed;
 
             playBtn.addEventListener('click', () => {
-                if (video.paused) {
-                    video.play();
-                    playBtn.textContent = '⏸';
-                } else {
-                    video.pause();
-                    playBtn.textContent = '▶';
-                }
+                if (video.paused) video.play();
+                else video.pause();
             });
+            // 재생 상태 변화 시 버튼 자동 동기화 (Space, 외부 pause, stepFrame 등 포괄)
+            video.addEventListener('play', () => { playBtn.textContent = '⏸'; });
+            video.addEventListener('pause', () => { playBtn.textContent = '▶'; });
 
             video.addEventListener('timeupdate', () => {
                 const pct = (video.currentTime / video.duration) * 100;
                 progress.value = pct;
-                document.getElementById('current-time').textContent = formatTime(video.currentTime);
+                UI.currentTime.textContent = formatTime(video.currentTime);
             });
 
             video.addEventListener('loadedmetadata', () => {
-                document.getElementById('duration').textContent = formatTime(video.duration);
+                UI.duration.textContent = formatTime(video.duration);
             });
 
+            // 재생바 seek: 클릭/드래그 → ratio 계산 → currentTime 이동
+            const seekFromClientX = (clientX) => {
+                const rect = progress.getBoundingClientRect();
+                const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+                progress.value = ratio * 100;
+                if (video && video.duration) video.currentTime = ratio * video.duration;
+            };
             progress.addEventListener('input', (e) => {
-                const time = (e.target.value / 100) * video.duration;
-                video.currentTime = time;
+                if (video && video.duration) video.currentTime = (e.target.value / 100) * video.duration;
             });
             progress.addEventListener('mousedown', (e) => {
                 e.stopPropagation();
-                const rect = progress.getBoundingClientRect();
-                const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-                progress.value = ratio * 100;
-                video.currentTime = ratio * video.duration;
+                seekFromClientX(e.clientX);
+                const onMove = (ev) => seekFromClientX(ev.clientX);
+                const onUp = () => {
+                    window.removeEventListener('mousemove', onMove);
+                    window.removeEventListener('mouseup', onUp);
+                };
+                window.addEventListener('mousemove', onMove);
+                window.addEventListener('mouseup', onUp);
             });
             progress.addEventListener('click', (e) => { e.stopPropagation(); });
             progress.addEventListener('pointerdown', (e) => { e.stopPropagation(); });
@@ -657,13 +691,13 @@
             });
 
             // View controls
-            document.getElementById('fov').addEventListener('input', (e) => {
+            UI.fov.addEventListener('input', (e) => {
                 const val = clamp(parseFloat(e.target.value), 0.5, getMaxFovDeg());
                 camera.fov = val;
                 camera.updateProjectionMatrix();
                 updateDistortionFovRatio();
                 e.target.value = val;
-                document.getElementById('fov-val').textContent = Math.round(val) + '°';
+                UI.fovVal.textContent = Math.round(val) + '°';
             });
 
             document.getElementById('reset').addEventListener('click', resetView);
@@ -699,13 +733,8 @@
                 // Space: 재생/정지
                 if (e.code === 'Space') {
                     e.preventDefault();
-                    if (video.paused) {
-                        video.play();
-                        document.getElementById('play-btn').textContent = '⏸';
-                    } else {
-                        video.pause();
-                        document.getElementById('play-btn').textContent = '▶';
-                    }
+                    if (video.paused) video.play();
+                    else video.pause();
                     return;
                 }
                 // 화살표 좌/우: 5초 이동
@@ -755,32 +784,11 @@
                 if (mapped) keysPressed.delete(mapped);
             });
 
-            // 재생바 클릭/드래그
-            const progressBar = document.getElementById('progress');
-            const seekTo = (e) => {
-                const rect = progressBar.getBoundingClientRect();
-                const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-                video.currentTime = ratio * video.duration;
-            };
-            progressBar.addEventListener('click', seekTo);
-            progressBar.addEventListener('mousedown', (e) => {
-                seekTo(e);
-                const onMove = (e) => seekTo(e);
-                const onUp = () => {
-                    window.removeEventListener('mousemove', onMove);
-                    window.removeEventListener('mouseup', onUp);
-                };
-                window.addEventListener('mousemove', onMove);
-                window.addEventListener('mouseup', onUp);
-            });
-
             // 오디오 파형 분석
             analyzeAudioWaveform();
 
-            // Start playback
-            video.play().then(() => {
-                document.getElementById('play-btn').textContent = '⏸';
-            }).catch(() => {});
+            // Start playback (버튼 상태는 'play' 이벤트로 자동 동기화됨)
+            video.play().catch(() => {});
 
             animate();
         }
@@ -791,8 +799,7 @@
             const fov = Math.min(50, getMaxFovDeg());
             camera.fov = fov;
             camera.updateProjectionMatrix();
-            document.getElementById('fov').value = Math.round(fov);
-            document.getElementById('fov-val').textContent = Math.round(fov) + '°';
+            setFovUI(fov);
             createGeometry();
         }
 
@@ -870,14 +877,11 @@
 
             // FOV 슬라이더 최대값 + 카메라 현재 fov 클램프
             const maxFov = getMaxFovDeg();
-            const fovSlider = document.getElementById('fov');
-            if (fovSlider) fovSlider.max = Math.round(maxFov);
+            if (UI.fov) UI.fov.max = Math.round(maxFov);
             if (camera && camera.fov > maxFov) {
                 camera.fov = maxFov;
                 camera.updateProjectionMatrix();
-                if (fovSlider) fovSlider.value = Math.round(maxFov);
-                const fovValEl = document.getElementById('fov-val');
-                if (fovValEl) fovValEl.textContent = Math.round(maxFov) + '\u00B0';
+                setFovUI(maxFov);
             }
         }
 
@@ -885,6 +889,13 @@
             if (mesh && mesh.material && mesh.material.uniforms && mesh.material.uniforms.fovRatio) {
                 mesh.material.uniforms.fovRatio.value = camera.fov / 90.0;
             }
+        }
+
+        // FOV 슬라이더 + 라벨 동기화 (slider를 같이 업데이트할 때 사용)
+        function setFovUI(fov) {
+            const rounded = Math.round(fov);
+            if (UI.fov) UI.fov.value = rounded;
+            if (UI.fovVal) UI.fovVal.textContent = rounded + '\u00B0';
         }
 
         function getMaxFovDeg() {
@@ -901,10 +912,7 @@
                 camera.fov = maxFov;
                 camera.updateProjectionMatrix();
                 velocity.fov = 0;
-                const fovEl = document.getElementById('fov');
-                if (fovEl) fovEl.value = Math.round(maxFov);
-                const fovValEl = document.getElementById('fov-val');
-                if (fovValEl) fovValEl.textContent = Math.round(maxFov) + '\u00B0';
+                setFovUI(maxFov);
             }
 
             const vFovRad = THREE.MathUtils.degToRad(camera.fov);
@@ -955,11 +963,11 @@
             if (isUserInteracting) {
                 const dx = event.clientX - prevPointerX;
                 const dy = event.clientY - prevPointerY;
-                const fovScale = camera.fov / 50;
-                lon -= dx * 0.08 * fovScale;
-                lat += dy * 0.08 * fovScale;
-                velocity.lon = -dx * 0.04 * fovScale;
-                velocity.lat = dy * 0.04 * fovScale;
+                const fovScale = camera.fov / FOV_REF;
+                lon -= dx * DRAG_POS_SENS * fovScale;
+                lat += dy * DRAG_POS_SENS * fovScale;
+                velocity.lon = -dx * DRAG_VEL_SENS * fovScale;
+                velocity.lat = dy * DRAG_VEL_SENS * fovScale;
                 prevPointerX = event.clientX;
                 prevPointerY = event.clientY;
             }
@@ -1000,7 +1008,7 @@
         }
 
         function onWheel(event) {
-            const zoomSens = (camera.fov / 50) * 0.008;
+            const zoomSens = (camera.fov / FOV_REF) * WHEEL_ZOOM_SENS;
             velocity.fov += event.deltaY * zoomSens;
         }
 
@@ -1014,7 +1022,7 @@
         function snap(v) { return Math.abs(v) < VEL_THRESHOLD ? 0 : v; }
 
         function updateSmoothControls() {
-            const fovRatio = camera.fov / 50;
+            const fovRatio = camera.fov / FOV_REF;
             const fovScale = Math.pow(fovRatio, 1.5);
 
             // Pan (AWDS)
@@ -1072,8 +1080,7 @@
             if (velocity.fov !== 0) {
                 camera.fov = clamp(camera.fov + velocity.fov, 0.5, getMaxFovDeg());
                 camera.updateProjectionMatrix();
-                document.getElementById('fov').value = Math.round(camera.fov);
-                document.getElementById('fov-val').textContent = Math.round(camera.fov) + '\u00B0';
+                setFovUI(camera.fov);
             }
 
             // 파노라마 밖을 보지 않도록 시점 제한
@@ -1129,10 +1136,7 @@
         // 프레임 단위 이동
         function stepFrame(direction) {
             if (!video) return;
-            if (!video.paused) {
-                video.pause();
-                document.getElementById('play-btn').textContent = '▶';
-            }
+            if (!video.paused) video.pause();
             const fps = 30;
             video.currentTime = Math.max(0, Math.min(video.duration, video.currentTime + direction / fps));
             showToast(direction > 0 ? '▶| 다음 프레임' : '|◀ 이전 프레임');
@@ -1140,7 +1144,7 @@
 
         // 토스트
         function showToast(msg) {
-            const t = document.getElementById('toast');
+            const t = UI.toast;
             t.textContent = msg;
             t.classList.add('active');
             clearTimeout(t._timer);
@@ -1165,7 +1169,7 @@
 
                 // 채널 데이터 → 다운샘플링
                 const rawData = audioBuffer.getChannelData(0);
-                const canvas = document.getElementById('audio-waveform');
+                const canvas = UI.audioWaveform;
                 const barCount = Math.min(canvas.offsetWidth || 600, 800);
                 const samplesPerBar = Math.floor(rawData.length / barCount);
                 const peaks = [];
@@ -1192,7 +1196,7 @@
         }
 
         function drawWaveform(peaks) {
-            const canvas = document.getElementById('audio-waveform');
+            const canvas = UI.audioWaveform;
             if (!canvas || !peaks || peaks.length === 0) return;
             const rect = canvas.parentElement.getBoundingClientRect();
             const dpr = window.devicePixelRatio || 1;
@@ -1209,9 +1213,9 @@
 
             const barW = w / peaks.length;
             for (let i = 0; i < peaks.length; i++) {
-                const barH = Math.max(1, peaks[i] * h * 0.9);
+                const barH = Math.max(1, peaks[i] * h * WAVEFORM_BAR_HEIGHT);
                 const x = i * barW;
-                ctx.fillStyle = `rgba(74, 158, 255, ${0.3 + peaks[i] * 0.5})`;
+                ctx.fillStyle = `rgba(74, 158, 255, ${WAVEFORM_ALPHA_BASE + peaks[i] * WAVEFORM_ALPHA_PEAK})`;
                 ctx.fillRect(x, h - barH, Math.max(barW - 0.5, 0.5), barH);
             }
         }
@@ -1249,8 +1253,7 @@
                     const sens = 0.15;
                     camera.fov = clamp(camera.fov - delta * sens, 0.5, getMaxFovDeg());
                     camera.updateProjectionMatrix();
-                    document.getElementById('fov').value = Math.round(camera.fov);
-                    document.getElementById('fov-val').textContent = Math.round(camera.fov) + '°';
+                    setFovUI(camera.fov);
 
                     lastPinchDist = dist;
                 }
@@ -1260,6 +1263,25 @@
                 lastPinchDist = 0;
             }, { passive: true });
         })();
+
+        // === 이벤트 바인딩 (HTML inline onclick 대체) ===
+        // 패널 헤더 클릭 → 접기/펼치기
+        document.querySelectorAll('.panel-header').forEach(h => {
+            h.addEventListener('click', () => togglePanel(h));
+        });
+        // 모바일 탭 전환
+        document.querySelectorAll('.mobile-tab').forEach(tab => {
+            tab.addEventListener('click', () => mobileTabSwitch(tab.dataset.panel));
+        });
+        // 모바일 플로팅 컨트롤
+        document.querySelectorAll('.mobile-ctrl-btn').forEach(btn => {
+            const action = btn.dataset.action;
+            btn.addEventListener('click', () => {
+                if (action === 'prev-frame') stepFrame(-1);
+                else if (action === 'next-frame') stepFrame(1);
+                else if (action === 'screenshot') takeScreenshot();
+            });
+        });
 
         // 모바일 탭 전환
         function mobileTabSwitch(panelId) {
@@ -1281,18 +1303,17 @@
 
         // 재생바 터치 이벤트
         (function setupProgressTouch() {
-            const bar = document.getElementById('progress-bar');
+            const bar = UI.progressBar;
             if (!bar) return;
 
             function touchSeek(e) {
                 if (!video || !video.duration) return;
-                const wrapper = document.getElementById('progress-wrapper');
+                const wrapper = UI.progressWrapper;
                 const rect = wrapper.getBoundingClientRect();
                 const touch = e.touches[0] || e.changedTouches[0];
                 const ratio = Math.max(0, Math.min(1, (touch.clientX - rect.left) / rect.width));
                 video.currentTime = ratio * video.duration;
-                const progress = document.getElementById('progress');
-                progress.value = ratio * 100;
+                UI.progress.value = ratio * 100;
             }
 
             bar.addEventListener('touchstart', (e) => {
