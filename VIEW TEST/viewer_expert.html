@@ -435,7 +435,7 @@
             <div class="control-group">
                 <label>Camera FOV</label>
                 <div class="control-row">
-                    <input type="range" id="fov" min="1" max="90" value="50">
+                    <input type="range" id="fov" min="1" max="100" value="50">
                     <span class="value" id="fov-val">50°</span>
                 </div>
             </div>
@@ -471,8 +471,9 @@
         // 파노라마 밖 패딩이 보이지 않도록 lon/lat/fov를 제한하기 위함.
         // VIEW_PAD_H/V_RAD 만큼은 약간의 패딩 노출 허용.
         let panoH_rad = 0, panoV_rad = 0;
-        const VIEW_PAD_H_RAD = 0.0;   // 좌우 허용 패딩 (음수면 호 안쪽으로 당김)
-        const VIEW_PAD_V_RAD = -0.035; // 상하 허용 패딩 — 스티칭된 상/하단 검은 여백 숨김 (~-2°)
+        const VIEW_PAD_H_RAD = 0.0;   // 좌우 허용 패딩 (0 = 픽셀 있는 곳까지만)
+        const VIEW_PAD_V_RAD = 0.0;   // 상하 허용 패딩 (0 = 호 끝까지, 음수면 안쪽으로 당김)
+        const MAX_FOV_DEG = 100;      // 최대 FOV 캡 (°) — 90 → 100으로 줌아웃 여유 확장
 
         // Brown-Conrady radial distortion 보정 계수 (렌즈 배럴 왜곡 역보정)
         // k1<0: pincushion, 가장자리에서 안쪽으로 당김 → cylindrical 곡률 완화
@@ -899,8 +900,8 @@
         }
 
         function getMaxFovDeg() {
-            if (!panoV_rad) return 90;
-            return Math.min(90, THREE.MathUtils.radToDeg(panoV_rad) + 2 * THREE.MathUtils.radToDeg(VIEW_PAD_V_RAD));
+            if (!panoV_rad) return MAX_FOV_DEG;
+            return Math.min(MAX_FOV_DEG, THREE.MathUtils.radToDeg(panoV_rad) + 2 * THREE.MathUtils.radToDeg(VIEW_PAD_V_RAD));
         }
 
         function clampViewState() {
