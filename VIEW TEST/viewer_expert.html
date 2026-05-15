@@ -907,13 +907,15 @@
             // 화면 aspect 따라 두 후보 중 큰 값 사용 (둘 다 만족시키는 vFov):
             //   - vForH: hFov = panoH_rad이 되는 vFov
             //   - vForV: vFov = panoV_rad 자체
+            // 1.08x margin: perspective 투영의 가장자리 픽셀 압축/clipping 보정
+            //   (margin 없으면 panorama 상하단 픽셀이 camera frame 가장자리에 닿아 일부 안 보임)
             if (!panoH_rad || !panoV_rad) return MAX_FOV_DEG;
             const aspect = (camera && camera.aspect)
                 ? camera.aspect
                 : (window.innerWidth / window.innerHeight);
-            // hFov = 2*atan(tan(vFov/2) * aspect)  →  vFov = 2*atan(tan(panoH/2) / aspect)
-            const vForH = 2 * Math.atan(Math.tan(panoH_rad / 2) / aspect);
-            const vForV = panoV_rad;
+            const FIT_MARGIN = 1.08;  // 8% 여유 → 가장자리 픽셀 완전히 보이게
+            const vForH = 2 * Math.atan(Math.tan(panoH_rad / 2) / aspect) * FIT_MARGIN;
+            const vForV = panoV_rad * FIT_MARGIN;
             const fitVFovRad = Math.max(vForH, vForV);
             return Math.min(MAX_FOV_DEG, THREE.MathUtils.radToDeg(fitVFovRad));
         }
