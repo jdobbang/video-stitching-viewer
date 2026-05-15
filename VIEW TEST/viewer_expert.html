@@ -468,12 +468,14 @@
         let TOTAL_FOV_RAD = IMG_WIDTH / FOCAL_LENGTH;
 
         // --- View bounds (set in createGeometry) ---
-        // 파노라마 밖 패딩이 보이지 않도록 lon/lat/fov를 제한하기 위함.
-        // VIEW_PAD_H/V_RAD 만큼은 약간의 패딩 노출 허용.
+        // 줌아웃 한계 = panorama 전체가 한 화면에 들어갈 만큼.
+        // PAD=0이라 줌인 시 카메라가 콘텐츠 가장자리에서 멈춤 (좌/우 사이드라인 차단).
+        // 줌아웃 끝까지 가면 카메라 vFov가 panoV를 넘어서 상/하 검은 letterbox 노출 가능
+        // — 이건 "전체 보이게" 요구 때문에 의도된 동작.
         let panoH_rad = 0, panoV_rad = 0;
-        const VIEW_PAD_H_RAD = 0.0;   // 좌우 허용 패딩 (0 = 픽셀 있는 곳까지만)
-        const VIEW_PAD_V_RAD = 0.0;   // 상하 허용 패딩 (0 = 호 끝까지, 음수면 안쪽으로 당김)
-        const MAX_FOV_DEG = 100;      // 최대 FOV 캡 (°) — 90 → 100으로 줌아웃 여유 확장
+        const VIEW_PAD_H_RAD = 0.0;   // 좌우 패딩 0 = 픽셀 있는 곳까지만 (사이드라인 차단)
+        const VIEW_PAD_V_RAD = 0.0;   // 상하 패딩 0 = 호 끝까지
+        const MAX_FOV_DEG = 179;      // hard cap만 (실제 max는 getMaxFovDeg에서 aspect 기반 계산)
 
         // Brown-Conrady radial distortion 보정 계수 (렌즈 배럴 왜곡 역보정)
         // k1<0: pincushion, 가장자리에서 안쪽으로 당김 → cylindrical 곡률 완화
@@ -632,6 +634,13 @@
             videoTexture.magFilter = THREE.LinearFilter;
 
             createGeometry();
+
+            // 초기 FOV = panorama 전체가 한 화면에 들어가는 fit 값.
+            // (createGeometry에서 panoH_rad/panoV_rad 세팅 후 호출되어야 함)
+            const fitFov = getMaxFovDeg();
+            camera.fov = fitFov;
+            camera.updateProjectionMatrix();
+            setFovUI(fitFov);
 
             // Event listeners
             container.addEventListener('pointerdown', onPointerDown);
@@ -797,11 +806,13 @@
         function resetView() {
             lon = 0; lat = 0;
             videoRotation = 0;
-            const fov = Math.min(50, getMaxFovDeg());
+            // createGeometry()가 panoH/V_rad 설정 후 getMaxFovDeg 사용 가능
+            createGeometry();
+            // 초기 FOV = 줌아웃 최대 = panorama 전체 fit
+            const fov = getMaxFovDeg();
             camera.fov = fov;
             camera.updateProjectionMatrix();
             setFovUI(fov);
-            createGeometry();
         }
 
         function createGeometry() {
@@ -843,24 +854,15 @@
                 `,
                 fragmentShader: `
                     uniform sampler2D map;
+                    // k1, k2, fovRatio uniform은 더 이상 사용 안 함 (호환성 위해 선언만 유지)
                     uniform float k1;
                     uniform float k2;
-                    uniform float fovRatio;
                     varying vec2 vUv;
                     void main() {
-                        vec2 uv = vUv * 2.0 - 1.0;
-                        float r2 = dot(uv, uv);
-                        float r4 = r2 * r2;
-                        float correction = 1.0 + k1 * r2 + k2 * r4;
-                        correction = mix(1.0, correction, clamp(fovRatio, 0.0, 1.0));
-                        vec2 correctedUv = uv * correction;
-                        correctedUv = correctedUv * 0.5 + 0.5;
-                        if (correctedUv.x < 0.0 || correctedUv.x > 1.0 ||
-                            correctedUv.y < 0.0 || correctedUv.y > 1.0) {
-                            gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
-                            return;
-                        }
-                        gl_FragColor = texture2D(map, correctedUv);
+                        // Brown-Conrady distortion 보정 완전 제거 — raw panorama mp4를
+                        // 셰이더 변형 없이 그대로 cylinder에 입힌다. 사용자가 일반 player로
+                        // 재생할 때와 동일한 픽셀 보이게.
+                        gl_FragColor = texture2D(map, vUv);
                     }
                 `,
                 side: THREE.DoubleSide
@@ -900,8 +902,20 @@
         }
 
         function getMaxFovDeg() {
-            if (!panoV_rad) return MAX_FOV_DEG;
-            return Math.min(MAX_FOV_DEG, THREE.MathUtils.radToDeg(panoV_rad) + 2 * THREE.MathUtils.radToDeg(VIEW_PAD_V_RAD));
+            // panorama 전체(가로 panoH_rad + 세로 panoV_rad)가 화면에 들어가는
+            // 최소 vFov 계산 → 그 값이 줌아웃 한계.
+            // 화면 aspect 따라 두 후보 중 큰 값 사용 (둘 다 만족시키는 vFov):
+            //   - vForH: hFov = panoH_rad이 되는 vFov
+            //   - vForV: vFov = panoV_rad 자체
+            if (!panoH_rad || !panoV_rad) return MAX_FOV_DEG;
+            const aspect = (camera && camera.aspect)
+                ? camera.aspect
+                : (window.innerWidth / window.innerHeight);
+            // hFov = 2*atan(tan(vFov/2) * aspect)  →  vFov = 2*atan(tan(panoH/2) / aspect)
+            const vForH = 2 * Math.atan(Math.tan(panoH_rad / 2) / aspect);
+            const vForV = panoV_rad;
+            const fitVFovRad = Math.max(vForH, vForV);
+            return Math.min(MAX_FOV_DEG, THREE.MathUtils.radToDeg(fitVFovRad));
         }
 
         function clampViewState() {
